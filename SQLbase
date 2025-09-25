@@ -1,0 +1,20 @@
+・データベースにログイン
+mysql -u root -p
+
+・データベースを表示
+show database;
+
+・テーブル一覧
+show tables;
+
+・テーブルの構造
+describe users
+
+・現在のユーザとｄｂを確認
+select user(),database();
+
+・バージョン確認
+select version();
+
+・終了
+exit;
