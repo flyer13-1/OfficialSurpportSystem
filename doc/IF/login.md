@@ -35,7 +35,7 @@
 ```json
 {
   "username": "20051023", // 利用者ID
-  "password": "password" // パスワード（sha256でハッシュ化するかも）
+  "password": "password" // パスワード（暗号化）
 }
 ```
 
