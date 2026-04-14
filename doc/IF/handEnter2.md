@@ -37,17 +37,17 @@
 ```json
 {
   "5": {
-    "driver": "A",
+    "driver": "A",//String
 
-    "inTime": "10:00",
+    "inTime": "10:00",//String
 
-    "outTime": "11:00",
+    "outTime": "11:00",//String
 
-    "tire": "交換",
+    "tire": "yes",//boolean
 
-    "oil": "補充",
+    "oil": "no",//boolean
 
-    "note": "メモ"
+    "note": "メモ"//String
   }
 }
 ```

@@ -38,25 +38,31 @@
 //量が多いの一部だけとする。画面のように一部だけ送られる場合があるがその場合も記録する。要素がない場合は斜線で記録
 {
   "5": {
-    "driver": "A<br>せきりょうた",
+    "driver": "A",//String
 
-    "inTime": "10:00",
+    "inTime": "10:00",//String
 
-    "outTime": "11:00",
+    "outTime": "11:00",//String
 
-    "tire": "交換",
+    "tire": "yes",//boolean
 
-    "oil": "補充",
+    "oil": "no",//boolean
 
-    "note": "メモ"
+    "note": "メモ"//String
   },
 
   "6": {
-    "driver": "B<br>ぶいしっくす",
+    "driver": "B",//String
 
-    "inTime": "12:00",
+    "inTime": "12:00",//String
 
-    "outTime": "13:00"
+    "outTime": "13:00",//String
+    
+    "tire": "yes",//boolean
+
+    "oil": "no",//boolean
+
+    "note": "メモ"//String
   }
 }
 ```
