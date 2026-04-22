@@ -43,7 +43,7 @@
 ```json
 {
   "username": "あそう太郎", // 担当者名
-  "password": "password" // パスワード（平文）
+  "password": "password", // パスワード（平文）
 
   //１：富士　2：茂木　3：菅生　4:鈴鹿　5:岡山国際　6:その他　7:無所属
   "circuit": "1" //サーキット

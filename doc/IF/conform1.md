@@ -22,7 +22,7 @@
 
 ## API パス
 
-- `/user/entry`
+- `/user/user`
 
 ## メソッド
 
