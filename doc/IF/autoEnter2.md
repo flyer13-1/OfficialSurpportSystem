@@ -58,7 +58,17 @@
       "note": ""
     }
   },
-  "unsent": {}
+  "unsent": {
+    "15": {
+      "inTime": "2026-05-06T12:00:00+09:00",
+      "outTime": null,
+      "noneTime": "2026-05-06T12:30:00+09:00",
+      "driver": "B",
+      "tire": false, //boolean
+      "oil": true, //boolean
+      "note": ""
+    }
+  }
 }
 ```
 

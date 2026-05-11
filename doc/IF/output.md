@@ -22,7 +22,7 @@
 
 ## API パス
 
-- `/entry/output`
+- `/entries/output`
 
 ## メソッド
 
@@ -32,11 +32,7 @@
 
 ### クエリパラメータ
 
-```json
-{
-  //何か必要ですか？
-}
-```
+なし
 
 ### リクエストボディ
 
@@ -50,25 +46,37 @@
 
 ### レスポンスボディ
 
-```json　//showallと一緒
+```json
 {
-  "msg": "エラー内容", //準正常系・正常終了した場合は空文字
-  //車番がkeyValue
-
-  "1": [
-    "管理ID",
-    "担当者",
-    "ピット番号",
-    "ゼッケン番号",
-    "クラス名",
-    "チーム名",
-    "リタイア",
-    "インドライバー",
-    "アウトドライバー",
-    "ピットイン",
-    "ピットアウト",
-    "ピットGAP"
-  ]
-  //という感じですべての情報を含めること
+  "msg": "", //準正常系・正常終了した場合は空文字
+  //キーはDBの管理ID（一意）。車番は複数回ピットインで重複するため管理IDを使用
+  "1": {
+    "managerId": 1,
+    "manager": "あそう太郎",
+    "pitNum": 1,
+    "carNum": 5,
+    "className": "st1",
+    "teamName": "TeamA",
+    "retire": false, //boolean
+    "inDriver": "A",
+    "outDriver": "B",
+    "inTime": "2026-05-06T10:00:00+09:00",
+    "outTime": "2026-05-06T11:00:00+09:00",
+    "pitGap": 3600
+  },
+  "2": {
+    "managerId": 2,
+    "manager": "あそう太郎",
+    "pitNum": 2,
+    "carNum": 5,
+    "className": "st1",
+    "teamName": "TeamA",
+    "retire": false, //boolean
+    "inDriver": "B",
+    "outDriver": "A",
+    "inTime": "2026-05-06T15:00:00+09:00",
+    "outTime": "2026-05-06T16:00:00+09:00",
+    "pitGap": 3600
+  }
 }
 ```
