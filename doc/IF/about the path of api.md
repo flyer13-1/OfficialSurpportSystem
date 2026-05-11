@@ -5,10 +5,9 @@ forgetPass.html /user/password
 conform.html /user/me
 main.html /entries
 
-autoEnter.html /entries/auto
-handEnter.html /entries/hand
+autoEnter.html /entries/init (GET), /entries/auto (POST)
+handEnter.html /entries/init (GET), /entries/hand (POST)
 updateEnter.html /entries/update
 
 showAll.html /entries/show
-
-output.html /entries/output
+output.html /entries/show

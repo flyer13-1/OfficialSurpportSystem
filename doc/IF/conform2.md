@@ -40,10 +40,10 @@
 
 ### ステータスコード
 
-- `200 OK`: 正常なレスポンス
-- `400 Bad Request`: パラメータエラー
-- `401 Unauthorized`: 未ログイン（セッション切れ含む）
-- `500 Internal Server Error`: サーバーエラー
+- `200 OK`: 正常なレスポンス（`msg`: 空文字）
+- `400 Bad Request`: パラメータエラー（`msg`: エラー詳細）
+- `401 Unauthorized`: 未ログイン（セッション切れ含む）（`msg`: エラー詳細）
+- `500 Internal Server Error`: サーバーエラー（`msg`: エラー詳細）
 
 ### レスポンスボディ
 
@@ -52,8 +52,7 @@
 ```json
 {
   "msg": "",
-  "userId": "aso_taro",
-  "memberNumber": "00123",
+  "username": "あそう太郎",
   "circuit": "1"
 }
 ```

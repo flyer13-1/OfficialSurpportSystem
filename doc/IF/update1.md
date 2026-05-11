@@ -44,10 +44,10 @@
 
 ### ステータスコード
 
-- `200 OK`: 正常なレスポンス
-- `400 Bad Request`: パラメータエラー
-- `401 Unauthorized`: 未ログイン（セッション切れ含む）
-- `500 Internal Server Error`: サーバーエラー
+- `200 OK`: 正常なレスポンス（`msg`: 空文字）
+- `400 Bad Request`: パラメータエラー（`msg`: エラー詳細）
+- `401 Unauthorized`: 未ログイン（セッション切れ含む）（`msg`: エラー詳細）
+- `500 Internal Server Error`: サーバーエラー（`msg`: エラー詳細）
 
 ### レスポンスボディ
 
@@ -61,14 +61,14 @@
     "manager": "あそう太郎",
     "pitNum": 1,
     "carNum": 4,
-    "className": "st1",
-    "teamName": "TeamA",
-    "retire": false, //boolean
+    "className": "st1",      //EntryTable から carNum で結合
+    "teamName": "TeamA",     //EntryTable から carNum で結合
+    "retire": false,         //boolean。RetireTable から carNum で結合
     "inDriver": "A",
     "outDriver": "B",
     "inTime": "2026-05-06T10:00:00+09:00",
     "outTime": "2026-05-06T11:00:00+09:00",
-    "pitGap": 3600
+    "pitGap": 3600           //DB保存なし。outTime - inTime（秒）をレスポンス生成時に計算
   },
   "2": {
     "managerId": 2,
@@ -77,7 +77,7 @@
     "carNum": 4,
     "className": "st1",
     "teamName": "TeamA",
-    "retire": false, //boolean
+    "retire": false,         //boolean
     "inDriver": "B",
     "outDriver": "A",
     "inTime": "2026-05-06T15:00:00+09:00",

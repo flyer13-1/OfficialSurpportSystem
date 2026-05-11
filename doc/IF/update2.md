@@ -59,14 +59,14 @@
 }
 ```
 
-2の時
+2の時（RetireTable に書き込み）
 
 ```json
 {
   // １が記録変更　２がリタイア
   "selection": "2",
   "carNum": 2,
-  "reason": "メモ" //retire理由
+  "reason": "メモ" //retire理由。RetireTable の reason カラムに保存
 }
 ```
 
@@ -74,15 +74,15 @@
 
 ### ステータスコード
 
-- `200 OK`: 正常なレスポンス
-- `400 Bad Request`: パラメータエラー
-- `401 Unauthorized`: 未ログイン（セッション切れ含む）
-- `500 Internal Server Error`: サーバーエラー
+- `200 OK`: 正常なレスポンス（`msg`: 空文字）
+- `400 Bad Request`: パラメータエラー（`msg`: エラー詳細）
+- `401 Unauthorized`: 未ログイン（セッション切れ含む）（`msg`: エラー詳細）
+- `500 Internal Server Error`: サーバーエラー（`msg`: エラー詳細）
 
 ### レスポンスボディ
 
 ```json
 {
-  "msg": "エラー内容" //準正常系・正常終了した場合は空文字
+  "msg": "エラー内容"
 }
 ```
