@@ -56,6 +56,7 @@
 
 - `200 OK`: 正常なレスポンス
 - `400 Bad Request`: パラメータエラー
+- `401 Unauthorized`: 未ログイン（セッション切れ含む）
 - `500 Internal Server Error`: サーバーエラー
 
 ### レスポンスボディ
