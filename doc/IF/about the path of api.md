@@ -2,13 +2,13 @@ login.html /login
 regist.html /user
 forgetPass.html /user/password
 
-conform.html /user/user
-main.html /entry
+conform.html /user/me
+main.html /entries
 
-autoEnter.html /entry/enter/auto
-handEnter.html /entry/enter/hand
-updateEnter.html /entry/enter/update
+autoEnter.html /entries/auto
+handEnter.html /entries/hand
+updateEnter.html /entries/update
 
-showAll.html /entry/show
+showAll.html /entries/show
 
-output.html /entry/output
+output.html /entries/output

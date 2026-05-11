@@ -22,7 +22,7 @@
 
 ## API パス
 
-- `/user/enter/auto`
+- `/entries/auto`
 
 ## メソッド
 
@@ -34,38 +34,38 @@
 
 ### リクエストボディ
 
+`current` は今回の送信データ、`unsent` は前回送信に失敗し端末に保存されていたデータ。データがある車両のみ含まれる。
+
 ```json
-//量が多いの一部だけとする。画面のように一部だけ送られる場合があるがその場合も記録する。要素がない場合は斜線で記録
 {
-  "5": {
-    "driver": "A",//String
-
-    "inTime": "10:00",//String
-
-    "outTime": "11:00",//String
-
-    "tire": "yes",//boolean
-
-    "oil": "no",//boolean
-
-    "note": "メモ"//String
+  "current": {
+    "5": {
+      "inTime": "2026-05-06T10:00:00+09:00",
+      "outTime": "2026-05-06T11:00:00+09:00",
+      "noneTime": null,
+      "driver": "A",
+      "tire": true, //boolean
+      "oil": false, //boolean
+      "note": "メモ"
+    },
+    "6": {
+      "inTime": "2026-05-06T12:00:00+09:00",
+      "outTime": null,
+      "noneTime": "2026-05-06T12:30:00+09:00",
+      "driver": "B",
+      "tire": false, //boolean
+      "oil": true, //boolean
+      "note": ""
+    }
   },
-
-  "6": {
-    "driver": "B",//String
-
-    "inTime": "12:00",//String
-
-    "outTime": "13:00",//String
-    
-    "tire": "yes",//boolean
-
-    "oil": "no",//boolean
-
-    "note": "メモ"//String
-  }
+  "unsent": {}
 }
 ```
+
+- `inTime` / `outTime` / `noneTime`: ISO 8601形式（`+09:00`付き）。未入力は `null`
+- `noneTime`: ピットアウトしない場合にボタンを押した時刻。`inTime` か `outTime` の一方が `null` のときに使用
+- `tire` / `oil`: `true` = 交換・補充あり、`false` = なし
+- `unsent` が空オブジェクトの場合は前回の未送信データなし
 
 ## レスポンス
 

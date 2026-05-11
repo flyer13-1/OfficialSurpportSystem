@@ -22,7 +22,7 @@
 
 ## API パス
 
-- `/user/enter/update`
+- `/entry/enter/update`
 
 ## メソッド
 

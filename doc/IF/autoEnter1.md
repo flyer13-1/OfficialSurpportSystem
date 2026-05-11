@@ -22,7 +22,7 @@
 
 ## API パス
 
-- `/user/enter/auto`
+- `/entry/enter/auto`
 
 ## メソッド
 
@@ -53,19 +53,19 @@
 
 ```json
 {
-  "msg": "エラー内容", //準正常系・正常終了した場合は空文字
-  "carNum":Number[5, 6, 15, 16, 0, 1, 20],//車両番号
-
-"driver": {
-  //車番がkeyvalue
-    "5": string[],
-    "6": string[],
-    "15": string[],
-    "16": string[],
-    "0": string[],
-    "1": string[],
-    "20": string[]
-}
-
+  "msg": "",
+  "carNum": [5, 6, 15, 16, 0, 1, 20],
+  "driver": {
+    "5": ["A<br>せきりょうた", "B<br>かんざきあおい", "C<br>きみずかんた"],
+    "6": ["A<br>かんじゃに", "B<br>ぶいしっくす", "C<br>すのーまん"],
+    "15": ["A<br>koko", "B<br>kesha", "C<br>putbll"],
+    "16": ["A<br>かず", "B<br>けんた", "C<br>かんた"],
+    "0": ["A<br>noziri", "B<br>mirei", "C<br>JUJU"],
+    "1": ["A<br>1gou", "B<br>2gou", "C<br>3gou"],
+    "20": ["A<br>灯台", "B<br>強大", "C<br>寛大"]
+  }
 }
 ```
+
+- `carNum`: 数値の配列
+- `driver`: キーは車番（文字列）、値はドライバー名の配列。名前内の `<br>` は表示用改行タグ

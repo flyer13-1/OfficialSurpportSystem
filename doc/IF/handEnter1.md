@@ -22,7 +22,7 @@
 
 ## API パス
 
-- `/user/enter/hand`
+- `/entry/enter/hand`
 
 ## メソッド
 

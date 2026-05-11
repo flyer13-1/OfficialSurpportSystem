@@ -22,7 +22,7 @@
 
 ## API パス
 
-- `/user/enter/update`
+- `/entries/update`
 
 ## メソッド
 
@@ -43,17 +43,17 @@
 
   "when": "2", //ピットの回数
 
-  "inTime": "10:00",
+  "inTime": "2026-05-06T10:00:00+09:00",
 
-  "outTime": "11:00",
+  "outTime": "2026-05-06T11:00:00+09:00",
 
-  "noneTime": "none",
+  "noneTime": null,
 
   "driver": "A",
 
-  "tire": "交換",
+  "tire": true, //boolean
 
-  "oil": "補充",
+  "oil": true, //boolean
 
   "note": "メモ"
 }
