@@ -8,6 +8,8 @@ SQLコード一覧（実行テスト済み）
 -- ・pit_log に manager / pit_num / none_time を追加。
 --   refueled / tire_changed (ENUM) → oil / tire (TINYINT boolean) に変更。
 --   out_time を NULL 許容に変更（none_time 使用時）。remarks → note にリネーム
+-- ・pit_log の none_time → garage_in_time にリネーム（ガレージストップ設計の確定）
+-- ・entry に start_driver を追加（スタートドライバー編成。ALTER TABLE + CSV ロードで別管理）
 -- ・race に today_id を追加（大会ID。conform1 の POST で照合するパスワード相当）
 -- ・retire テーブルを新規追加
 -- ・member_number は廃止
@@ -17,9 +19,8 @@ SQLコード一覧（実行テスト済み）
 ・ユーザの所属リスト（users より先に作成）
 
 CREATE TABLE organizations (
-    id   INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE,
-    circuit TINYINT NOT NULL  --サーキット番号 1=富士 2=茂木 3=菅生 4=鈴鹿 5=岡山国際 6=その他 7=無所属
+    circuit INT PRIMARY KEY,--サーキット番号 1=富士 2=茂木 3=菅生 4=鈴鹿 5=岡山国際 6=その他 7=無所属
+    name VARCHAR(100) NOT NULL UNIQUE
 );
 
 
@@ -33,7 +34,7 @@ CREATE TABLE users (
     created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    FOREIGN KEY (organization_id) REFERENCES organizations(id)
+    FOREIGN KEY (organization_id) REFERENCES organizations(circuit)
 );
 
 
@@ -55,7 +56,7 @@ CREATE TABLE entry (
     class_name   VARCHAR(50),            --クラス名
     entrant_name VARCHAR(100),           --エントラント名称
     vehicle_name VARCHAR(100),           --参加車両名称
-    maintenance_area VARCHAR(50),           --整備エリア（R1整備I①。車両の実整備場所）
+    maintenance_area VARCHAR(50),           --作業エリア（R1整備I①。車両の実整備場所）
     pit_garage       VARCHAR(20),           --ピットガレージ割り当て（PI）
     driver_A         VARCHAR(50) NOT NULL,
     driver_B         VARCHAR(50),
@@ -81,6 +82,21 @@ IGNORE 1 LINES
  driver_A, driver_B, driver_C, driver_D, driver_E, driver_F);
 
 
+・スタートドライバー編成
+
+ALTER TABLE entry ADD COLUMN start_driver CHAR(1) NOT NULL;
+
+・スタートドライバーをcsvで一括登録するとき
+
+LOAD DATA INFILE '/path/to/start_driver.csv'
+INTO TABLE entry
+FIELDS TERMINATED BY ','
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 LINES
+(race_id, car_num, start_driver);
+
+
 ・ピット監視記録
 
 CREATE TABLE pit_log (
@@ -90,10 +106,10 @@ CREATE TABLE pit_log (
     manager    VARCHAR(50)  NOT NULL,          --記録担当者名（users.username）
     pit_num    INT          NOT NULL,          --ピット回数（何回目か）
     in_time    DATETIME     NOT NULL,
-    out_time   DATETIME,                       --NULL 許容。none_time 使用時は NULL
-    none_time  DATETIME,                       --ピットアウトなしボタン押下時刻。out_time が NULL のとき使用
+    out_time   DATETIME,                       --NULL 許容。ガレージストップ時は2回目送信でUPDATE
+    garage_in_time DATETIME,                   --ガレージイン時刻。ガレージストップ時のみ使用
     in_driver  CHAR(1)      NOT NULL,
-    out_driver CHAR(1),                        --NULL 許容。none_time 使用時は NULL
+    out_driver CHAR(1),                        --NULL 許容。ガレージストップ時は2回目送信でUPDATE
     tire       TINYINT(1)   NOT NULL DEFAULT 0, --タイヤ交換 boolean（1=あり 0=なし）
     oil        TINYINT(1)   NOT NULL DEFAULT 0, --燃料補給 boolean（1=あり 0=なし）
     note       TEXT,

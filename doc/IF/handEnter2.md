@@ -37,9 +37,10 @@
 ```json
 {
   "5": {
-    "driver": "A",
+    "outDriver": "A",
     "inTime": "2026-05-06T10:00:00+09:00",
     "outTime": "2026-05-06T11:00:00+09:00",
+    "garageInTime": null,
     "tire": true, //boolean
     "oil": false, //boolean
     "note": "メモ"
@@ -47,7 +48,8 @@
 }
 ```
 
-- `inTime` / `outTime`: ISO 8601形式（`+09:00`付き）
+- `inTime` / `outTime` / `garageInTime`: ISO 8601形式（`+09:00`付き）。未入力は `null`
+- `garageInTime`: ガレージストップ時のガレージイン時刻。`outTime` が `null` のときに使用
 - `tire` / `oil`: `true` = 交換・補充あり、`false` = なし
 
 ## レスポンス

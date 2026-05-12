@@ -26,25 +26,31 @@
 - [ ] UsersTable（PK: `username`）
   - フィールド: `username`（担当者名）, `password`（bcrypt ハッシュ）, `organizationId`（OrganizationsTable の参照ID）
   - 備考: 会員番号は廃止。`username` は全データで一意
-- [ ] OrganizationsTable（PK: `id`）
-  - フィールド: `id`（UUID）, `name`（組織名）, `circuit`（サーキット番号 1-7）
+
+- [ ] OrganizationsTable（PK: `circuit`）
+  - フィールド: `circuit`（サーキット番号 1-7）, `name`（組織名）,
   - 備考: UsersTable の `organizationId` から参照。conform2（GET /user/me）でサーキット情報取得時に 2-way クエリで結合する
+
 - [ ] RaceTable（PK: `id`）
   - フィールド: `id`（UUID）, `title`（大会名）, `todayId`（大会ID・conform1 の POST で照合するパスワード相当）
+
 - [ ] EntryTable（PK: `raceId`, SK: `carNum`）
   - フィールド: `raceId`, `carNum`（ゼッケン番号）, `className`（クラス）, `entrantName`（エントラント名称）,
     `vehicleName`（参加車両名称）, `maintenanceArea`（整備エリア）, `pitGarage`（ピットガレージ割り当て）,
     `driverA`〜`driverF`（ドライバー名、最大6名・未登録は null）
   - 変更: 旧定義（`pitNum`, `driverA` のみ）から拡張。エントラント名・車両名・クラス・整備エリア・ピットガレージ・ドライバーB〜F を追加
+
 - [ ] PitLogTable（PK: `raceId`, SK: `id`, GSI: `CarNumIndex`）
   - フィールド: `raceId`, `id`（ULID）, `carNum`, `manager`（記録担当者名）, `pitNum`（ピット回数）,
-    `inTime`, `outTime`, `noneTime`（ピットアウトなし時のボタン押下時刻、null許容）,
+    `inTime`, `outTime`, `garage_in_time`（ガレージイン時刻。ガレージストップ時のみ使用,NULL許容）,
     `inDriver`, `outDriver`, `tire`（boolean）, `oil`（boolean）, `note`
-  - 変更: `manager`, `pitNum`, `noneTime`, `tire`, `oil`, `note` を追加。`retire` は RetireTable に分離
+  - 変更: `manager`, `pitNum`, `garage_in_time`, `tire`, `oil`, `note` を追加。`retire` は RetireTable に分離
   - 備考: `pitGap`（ピット滞在秒数）は保存せず、APIレスポンス生成時に `outTime - inTime` で計算する
-- [ ] RetireTable（PK: `raceId`, SK: `carNum`）  ← 新規追加
+
+- [ ] RetireTable（PK: `raceId`, SK: `carNum`） ← 新規追加
   - フィールド: `raceId`, `carNum`, `retire`（boolean）, `reason`（リタイア理由）
   - 用途: update2（PUT /entries/update, selection=2）で書き込み。showAll / update1 レスポンスで参照
+
 - [ ] 全テーブルの BillingMode を `PAY_PER_REQUEST` に設定
 
 ### Lambda Layer 実装
@@ -65,141 +71,142 @@
 
 ---
 
-## Phase 2: 認証 API
+## Phase 2: 認証・ユーザー管理 API
 
-### ユーザ登録 API
+### 〔認証〕ユーザ登録 API　`POST /user`
 
 - [ ] `functions/auth/register.mjs` 作成
-  - [ ] リクエストボディのバリデーション（username, password, nickname, organizationId）
-  - [ ] パスワード強度チェック（8文字以上、大文字・小文字・数字必須）
+  - [ ] リクエストボディのバリデーション（username, password, organizationId）
+  - [ ] パスワード強度チェック（6文字以上、大文字・小文字・数字必須）
   - [ ] `bcryptjs` でパスワードハッシュ化
   - [ ] UsersTable に `PutItem`（ConditionExpression で重複チェック）
   - [ ] 成功/エラーレスポンス返却
-- [ ] `template.yaml` に `RegisterFunction` 追加（`POST /auth/register`, 認証不要）
+- [ ] `template.yaml` に `RegisterFunction` 追加（認証不要）
 - [ ] `events/register-event.json` 作成（テスト用）
-- [ ] `doc/IF/auth-register.md` IF仕様書作成
+- [ ] `doc/IF/regist.md` IF仕様書確認
 
-### ログイン API
+### 〔認証〕ログイン API　`POST /login`
 
 - [ ] `functions/auth/login.mjs` 作成
   - [ ] リクエストボディのバリデーション（username, password）
   - [ ] UsersTable から `GetItem`（username で検索）
   - [ ] `bcryptjs` でパスワード照合
-  - [ ] `jsonwebtoken` で JWT 発行（ペイロード: username, nickname, organizationId）
+  - [ ] `jsonwebtoken` で JWT 発行（ペイロード: username, organizationId）
   - [ ] 成功/エラーレスポンス返却
-- [ ] `template.yaml` に `LoginFunction` 追加（`POST /auth/login`, 認証不要）
+- [ ] `template.yaml` に `LoginFunction` 追加（認証不要）
 - [ ] `events/login-event.json` 作成（テスト用）
-- [ ] `doc/IF/auth-login.md` IF仕様書作成
+- [ ] `doc/IF/login.md` IF仕様書確認
 
-### Lambda Authorizer
+### 〔認証〕大会ID照会 API　`POST /user/me`
 
-- [ ] `functions/auth/authorizer.mjs` 作成
+- [ ] `functions/auth/conform.mjs` 作成
+  - [ ] リクエストボディのバリデーション（todayId: 半角英数・15文字以上）
+  - [ ] RaceTable から `Scan` して `today_id` と照合
+  - [ ] 成功/エラーレスポンス返却
+- [ ] `template.yaml` に `ConformFunction` 追加（認証必要）
+- [ ] `events/conform-event.json` 作成（テスト用）
+- [ ] `doc/IF/conform1.md` IF仕様書確認
+
+### 〔ユーザー〕プロフィール取得 API　`GET /user/me`
+
+- [ ] `functions/auth/profile.mjs` 作成
+  - [ ] JWT から `username` を取得
+  - [ ] UsersTable から `GetItem`（username で検索）
+  - [ ] OrganizationsTable から `GetItem`（organizationId で検索）
+  - [ ] `username`, `circuit` を返却
+- [ ] `template.yaml` に `ProfileFunction` 追加（認証必要）
+- [ ] `events/profile-event.json` 作成（テスト用）
+- [ ] `doc/IF/conform2.md` IF仕様書確認
+
+### 〔ユーザー〕パスワード変更 API　`POST /user/password`
+
+- [ ] `functions/auth/changePassword.mjs` 作成
+  - [ ] リクエストボディのバリデーション（username, password, newpassword: 半角英数大文字小文字・6文字以上）
+  - [ ] UsersTable から `GetItem`（username で検索）
+  - [ ] `bcryptjs` で現在パスワード照合
+  - [ ] 新パスワード ≠ 現在パスワード チェック
+  - [ ] `bcryptjs` で新パスワードハッシュ化 → UsersTable に `UpdateItem`
+  - [ ] 成功/エラーレスポンス返却
+- [ ] `template.yaml` に `ChangePasswordFunction` 追加（認証必要）
+- [ ] `events/change-password-event.json` 作成（テスト用）
+- [ ] `doc/IF/forgetPass.md` IF仕様書確認
+
+### インフラ設定
+
+- [ ] Lambda Authorizer（`functions/auth/authorizer.mjs`）
   - [ ] Authorization ヘッダから Bearer トークン抽出
   - [ ] `jsonwebtoken` で JWT 検証
   - [ ] IAM ポリシードキュメント（Allow/Deny）を返却
-- [ ] `template.yaml` に `AuthorizerFunction` 追加
-- [ ] `template.yaml` の HttpApi に DefaultAuthorizer を設定
-
-### JWT シークレット管理
-
-- [ ] SSM Parameter Store に JWT 秘密鍵を登録（SecureString）
-- [ ] `template.yaml` に `JwtSecret` パラメータ追加
-- [ ] Lambda 環境変数 `JWT_SECRET` に参照を設定
-
-### API Gateway 設定
-
-- [ ] `template.yaml` に `OfficialSupportApi`（`AWS::Serverless::HttpApi`）追加
-  - [ ] CORS 設定
-  - [ ] Authorizer 設定（`/auth/*` は認証不要）
+- [ ] JWT シークレット（SSM Parameter Store に登録・Lambda 環境変数 `JWT_SECRET` に参照を設定）
+- [ ] API Gateway（CORS 設定・Authorizer 設定）
 
 ### 動作確認
 
 - [ ] `sam build` && `sam local start-api`
 - [ ] ユーザ登録 → ログイン → JWT取得 の一連フローをテスト
+- [ ] 大会ID照会・プロフィール取得・パスワード変更が正常動作することを確認
 - [ ] JWT 無しリクエストが 401 になることを確認
-- [ ] 重複ユーザ登録が 400 になることを確認
-- [ ] パスワード不一致が 401 になることを確認
 
 ---
 
 ## Phase 3: コア API
 
-### エントリー登録 API
+### 〔レース管理〕レース登録 / 一覧取得
 
-- [ ] `functions/entry/create.mjs` 作成
-  - [ ] リクエストボディのバリデーション（raceId, carNum, pitNum, driverA）
-  - [ ] EntryTable に `PutItem`
-  - [ ] 成功/エラーレスポンス返却
-- [ ] `template.yaml` に `EntryCreateFunction` 追加（`POST /entry`）
-- [ ] `events/entry-create-event.json` 作成
-- [ ] `doc/IF/entry-create.md` IF仕様書作成
+- [ ] `functions/race/create.mjs`　`POST /race`
+  - [ ] バリデーション（title）・UUID 生成・RaceTable に `PutItem`
+- [ ] `functions/race/list.mjs`　`GET /race`
+  - [ ] RaceTable を `Scan` して返却
+- [ ] 各 `template.yaml` Function 追加・`events/` 作成・`doc/IF/` 仕様書作成
 
-### エントリー一覧取得 API
+### 〔エントリー管理〕エントリー CRUD + 一括登録
 
-- [ ] `functions/entry/list.mjs` 作成
-  - [ ] クエリパラメータ `raceId` を取得
-  - [ ] EntryTable に `Query`（PK=raceId）
-  - [ ] レスポンス返却
-- [ ] `template.yaml` に `EntryListFunction` 追加（`GET /entry`）
-- [ ] `events/entry-list-event.json` 作成
-- [ ] `doc/IF/entry-list.md` IF仕様書作成
-
-### エントリー削除 API
-
-- [ ] `functions/entry/delete.mjs` 作成
-  - [ ] パスパラメータ `carNum` とクエリパラメータ `raceId` を取得
+- [ ] `functions/entry/create.mjs`　`POST /entry`
+  - [ ] バリデーション（raceId, carNum, className, entrantName, vehicleName, maintenanceArea, pitGarage, driverA〜driverF）・EntryTable に `PutItem`
+- [ ] `functions/entry/bulkCreate.mjs`　`POST /entry/bulk`
+  - [ ] CSV 受け取り・EntryTable に `BatchWriteItem`
+- [ ] `functions/entry/bulkStartDriver.mjs`　`POST /entry/start-driver/bulk`
+  - [ ] CSV 受け取り・EntryTable に `UpdateItem`（startDriver のみ更新）
+- [ ] `functions/entry/list.mjs`　`GET /entry`
+  - [ ] クエリパラメータ `raceId` で EntryTable を `Query`
+- [ ] `functions/entry/delete.mjs`　`DELETE /entry/{carNum}`
   - [ ] EntryTable に `DeleteItem`（PK=raceId, SK=carNum）
-  - [ ] 成功/エラーレスポンス返却
-- [ ] `template.yaml` に `EntryDeleteFunction` 追加（`DELETE /entry/{carNum}`）
-- [ ] `events/entry-delete-event.json` 作成
-- [ ] `doc/IF/entry-delete.md` IF仕様書作成
+- [ ] 各 `template.yaml` Function 追加・`events/` 作成・`doc/IF/` 仕様書作成
 
-### ピットログ登録 API
+### 〔ピット監視〕初期データ取得 / 入力送信
 
-- [ ] `functions/pitlog/create.mjs` 作成
-  - [ ] リクエストボディのバリデーション（raceId, carNum, inTime, outTime, inDriver, outDriver）
-  - [ ] ULID で一意な ID を生成
-  - [ ] PitLogTable に `PutItem`
-  - [ ] 成功/エラーレスポンス返却
-- [ ] `template.yaml` に `PitLogCreateFunction` 追加（`POST /pitlog`）
-- [ ] `events/pitlog-create-event.json` 作成
-- [ ] `doc/IF/pitlog-create.md` IF仕様書作成
+- [ ] `functions/entry/init.mjs`　`GET /entries/init`
+  - [ ] EntryTable から車両番号・ドライバー情報を取得して返却
+- [ ] `functions/pitlog/autoCreate.mjs`　`POST /entries/auto`
+  - [ ] バリデーション（current, unsent）・PitLogTable に `BatchWriteItem`
+- [ ] `functions/pitlog/handCreate.mjs`　`POST /entries/hand`
+  - [ ] バリデーション（carNum, outDriver, inTime, outTime, garageInTime, tire, oil, note）・PitLogTable に `PutItem`
+- [ ] `functions/pitlog/update.mjs`　`PUT /pitlog/garage-out`
+  - [ ] `outTime = NULL` のレコードを CarNumIndex で検索・`UpdateItem`（outTime / outDriver）
+- [ ] 各 `template.yaml` Function 追加・`events/` 作成・`doc/IF/` 仕様書確認
 
-### ピットログ一覧取得 API
+### 〔ピット監視〕記録変更 / リタイア
 
-- [ ] `functions/pitlog/list.mjs` 作成
-  - [ ] クエリパラメータ `raceId` または `carNum` を取得
-  - [ ] `raceId` 指定時: PitLogTable に `Query`（PK=raceId）
-  - [ ] `carNum` 指定時: GSI `CarNumIndex` に `Query`（PK=carNum）
-  - [ ] レスポンス返却
-- [ ] `template.yaml` に `PitLogListFunction` 追加（`GET /pitlog`）
-- [ ] `events/pitlog-list-event.json` 作成
-- [ ] `doc/IF/pitlog-list.md` IF仕様書作成
+- [ ] `functions/pitlog/updateGet.mjs`　`GET /entries/update`
+  - [ ] クエリパラメータ `carNum` で PitLogTable + RetireTable を結合して返却
+- [ ] `functions/pitlog/updatePut.mjs`　`PUT /entries/update`
+  - [ ] selection=1: PitLogTable の指定レコードを `UpdateItem`
+  - [ ] selection=2: RetireTable に `PutItem`（retire=true, reason）
+- [ ] 各 `template.yaml` Function 追加・`events/` 作成・`doc/IF/` 仕様書確認
 
-### レース登録 API
+### 〔参照〕全ピット情報 / ピットログ一覧
 
-- [ ] `functions/race/create.mjs` 作成
-  - [ ] リクエストボディのバリデーション（title）
-  - [ ] UUID で一意な ID を生成
-  - [ ] RaceTable に `PutItem`
-  - [ ] 成功/エラーレスポンス返却
-- [ ] `template.yaml` に `RaceCreateFunction` 追加（`POST /race`）
-- [ ] `events/race-create-event.json` 作成
-- [ ] `doc/IF/race-create.md` IF仕様書作成
-
-### レース一覧取得 API
-
-- [ ] `functions/race/list.mjs` 作成
-  - [ ] RaceTable を `Scan`
-  - [ ] レスポンス返却
-- [ ] `template.yaml` に `RaceListFunction` 追加（`GET /race`）
-- [ ] `events/race-list-event.json` 作成
-- [ ] `doc/IF/race-list.md` IF仕様書作成
+- [ ] `functions/pitlog/showAll.mjs`　`GET /entries/show`
+  - [ ] PitLogTable 全件取得・EntryTable / RetireTable 結合・garageInTime 非null 時は pitGap=null
+- [ ] `functions/pitlog/list.mjs`　`GET /pitlog`
+  - [ ] クエリパラメータ `raceId` または `carNum` で PitLogTable を `Query`
+- [ ] 各 `template.yaml` Function 追加・`events/` 作成・`doc/IF/` 仕様書確認
 
 ### 動作確認
 
 - [ ] `sam build` && `sam local start-api`
-- [ ] レース作成 → エントリー登録 → ピットログ記録 の一連フローをテスト
+- [ ] レース作成 → エントリー一括登録 → スタートドライバー一括登録 → ピットログ記録 の一連フローをテスト
+- [ ] ガレージストップ（POST /entries/auto → PUT /pitlog/garage-out）の2回送信フローをテスト
+- [ ] 記録変更・リタイア登録が正常動作することを確認
 - [ ] 各 GET API でデータが正しく返却されることを確認
-- [ ] エントリー削除後に一覧から消えることを確認
 - [ ] バリデーションエラー時に 400 が返却されることを確認

@@ -47,9 +47,9 @@
 
   "outTime": "2026-05-06T11:00:00+09:00",
 
-  "noneTime": null,
+  "garageInTime": null,
 
-  "driver": "A",
+  "outDriver": "A",
 
   "tire": true, //boolean
 

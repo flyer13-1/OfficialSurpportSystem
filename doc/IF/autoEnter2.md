@@ -42,8 +42,8 @@
     "5": {
       "inTime": "2026-05-06T10:00:00+09:00",
       "outTime": "2026-05-06T11:00:00+09:00",
-      "noneTime": null,
-      "driver": "A",
+      "garageInTime": null,
+      "outDriver": "A",
       "tire": true, //boolean
       "oil": false, //boolean
       "note": "メモ"
@@ -51,8 +51,17 @@
     "6": {
       "inTime": "2026-05-06T12:00:00+09:00",
       "outTime": null,
-      "noneTime": "2026-05-06T12:30:00+09:00",
-      "driver": "B",
+      "garageInTime": "2026-05-06T12:30:00+09:00",
+      "outDriver": "B",
+      "tire": false, //boolean
+      "oil": true, //boolean
+      "note": ""
+    },
+    "16": {
+      "inTime": null,
+      "outTime": "2026-05-06T12:30:00+09:00",
+      "garageInTime": null,
+      "outDriver": "B",
       "tire": false, //boolean
       "oil": true, //boolean
       "note": ""
@@ -62,8 +71,8 @@
     "15": {
       "inTime": "2026-05-06T12:00:00+09:00",
       "outTime": null,
-      "noneTime": "2026-05-06T12:30:00+09:00",
-      "driver": "B",
+      "garageInTime": "2026-05-06T12:30:00+09:00",
+      "outDriver": "B",
       "tire": false, //boolean
       "oil": true, //boolean
       "note": ""
@@ -72,8 +81,8 @@
 }
 ```
 
-- `inTime` / `outTime` / `noneTime`: ISO 8601形式（`+09:00`付き）。未入力は `null`
-- `noneTime`: ピットアウトしない場合にボタンを押した時刻。`inTime` か `outTime` の一方が `null` のときに使用
+- `inTime` / `outTime` / `garageInTime`: ISO 8601形式（`+09:00`付き）。未入力は `null`
+- `garageInTime`: ガレージストップ時のガレージイン時刻。`outTime` が `null` のときに使用
 - `tire` / `oil`: `true` = 交換・補充あり、`false` = なし
 - `unsent` が空オブジェクトの場合は前回の未送信データなし
 

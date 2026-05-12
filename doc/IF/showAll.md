@@ -56,14 +56,14 @@
     "manager": "あそう太郎",
     "pitNum": 1,
     "carNum": 5,
-    "className": "st1",      //EntryTable から carNum で結合
-    "teamName": "TeamA",     //EntryTable から carNum で結合
-    "retire": false,         //boolean。RetireTable から carNum で結合
+    "className": "st1", //EntryTable から carNum で結合
+    "teamName": "TeamA", //EntryTable から carNum で結合
+    "retire": false, //boolean。RetireTable から carNum で結合
     "inDriver": "A",
     "outDriver": "B",
     "inTime": "2026-05-06T10:00:00+09:00",
     "outTime": "2026-05-06T11:00:00+09:00",
-    "pitGap": 3600           //DB保存なし。outTime - inTime（秒）をレスポンス生成時に計算
+    "pitGap": 3600 //DB保存なし。outTime - inTime（秒）をレスポンス生成時に計算。garageInTime が非null の場合は null
   },
   "2": {
     "managerId": 2,
@@ -72,10 +72,24 @@
     "carNum": 5,
     "className": "st1",
     "teamName": "TeamA",
-    "retire": false,         //boolean
+    "retire": false, //boolean
     "inDriver": "B",
     "outDriver": "A",
     "inTime": "2026-05-06T15:00:00+09:00",
+    "outTime": "2026-05-06T16:00:00+09:00",
+    "pitGap": 3600
+  },
+  "12": {
+    "managerId": 3,
+    "manager": "あそう太郎",
+    "pitNum": 3,
+    "carNum": 6,
+    "className": "st1",
+    "teamName": "TeamA",
+    "retire": false, //boolean
+    "inDriver": "B",
+    "outDriver": "A",
+    "inTime": null,
     "outTime": "2026-05-06T16:00:00+09:00",
     "pitGap": 3600
   }

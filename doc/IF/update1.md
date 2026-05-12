@@ -68,7 +68,7 @@
     "outDriver": "B",
     "inTime": "2026-05-06T10:00:00+09:00",
     "outTime": "2026-05-06T11:00:00+09:00",
-    "pitGap": 3600           //DB保存なし。outTime - inTime（秒）をレスポンス生成時に計算
+    "pitGap": 3600           //DB保存なし。outTime - inTime（秒）をレスポンス生成時に計算。garageInTime が非null の場合は null
   },
   "2": {
     "managerId": 2,
