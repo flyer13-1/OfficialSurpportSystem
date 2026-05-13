@@ -1,0 +1,76 @@
+SQLコード一覧（実行テスト済み）
+
+・ログイン情報
+
+CREATE TABLE users(
+ id INT AUTO_INCREMENT,
+  username VARCHAR(50) NOT NULL UNIQUE, --ログインID
+  password_hash CHAR(256) NOT NULL,     --ハッシュ化されたパスワード
+  nickname VARCHAR(50) not null UNIQUE, --ニックネーム
+  organization_id INT not null ,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  FOREIGN KEY (organization_id) REFERENCES organizations(id)
+)
+
+・ユーザの所属リスト
+CREATE TABLE organizations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+);
+
+・エントリーリスト
+
+CREATE TABLE entry(
+	race_id INT NOT NULL ,
+	pit_num INT NOT NULL ,
+	car_num INT ,
+	driver_A VARCHAR(50)NOT NULL UNIQUE,
+	driver_B VARCHAR(50) ,
+	driver_C VARCHAR(50) ,
+	driver_D VARCHAR(50) ,
+	driver_E VARCHAR(50),
+	driver_F VARCHAR(50),
+	PRIMARY KEY (car_num),
+	FOREIGN KEY (race_id) REFERENCES race (id)
+);
+
+・データをcsvファイルで一括登録するとき
+
+LOAD DATA INFILE '/path/to/entry.csv'
+INTO TABLE entry
+FIELDS TERMINATED BY ',' 
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 LINES
+(car_num, pit_num, driver_A, driver_B, driver_C, driver_D, driver_E, driver_F);
+
+
+・ピット監視記録
+
+CREATE TABLE pit_log (
+    id INT NOT NULL AUTO_INCREMENT,
+    race_id INT NOT NULL,
+    car_num INT(3) NOT NULL ,
+    in_time DATETIME NOT NULL ,
+    out_time DATETIME NOT NULL ,
+    in_driver CHAR(1) NOT NULL ,
+    out_driver CHAR(1) NOT NULL ,
+    refueled ENUM('yes', 'no') DEFAULT 'no',
+    tire_changed ENUM('yes', 'no') DEFAULT 'no',
+    remarks TEXT,
+    PRIMARY KEY (id),
+	FOREIGN KEY (car_num) REFERENCES entry (car_num),
+	FOREIGN KEY (race_id) REFERENCES race (id)
+);
+
+・レースタイトル表
+CREATE TABLE race(
+	id INT NOT NULL AUTO_INCREMENT,
+	title VARCHAR (200) NOT NULL UNIQUE ,
+	PRIMARY KEY (id)
+)
+
+
+
