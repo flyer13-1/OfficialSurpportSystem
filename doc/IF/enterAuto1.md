@@ -18,7 +18,7 @@
 
 # インターフェース仕様
 
-担当者が監視する車両データとドライバーデータを取得する。autoEnter.html および handEnter.html が使用する。
+担当者が監視する車両データとドライバーデータを取得する。html_Enter/enterAuto.html および html_Enter/enterHand.html が使用する。
 
 ## API パス
 

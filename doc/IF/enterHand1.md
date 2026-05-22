@@ -10,4 +10,4 @@
 
 # インターフェース仕様
 
-autoEnter.html と同じAPIを使用。仕様は [autoEnter1.md](autoEnter1.md)（`GET /entries/init`）を参照。
+html_Enter/enterAuto.html と同じAPIを使用。仕様は [enterAuto1.md](enterAuto1.md)（`GET /entries/init`）を参照。
