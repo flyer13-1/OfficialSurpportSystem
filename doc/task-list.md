@@ -1,4 +1,4 @@
-# AWS SAM 移行 作業一覧
+﻿# AWS SAM 移行 作業一覧
 
 ---
 
@@ -26,14 +26,17 @@
 
 | テーブル | PK | SK | GSI | 主なフィールド |
 |---|---|---|---|---|
-| UsersTable | `username` | — | — | `password`（bcrypt）, `organizationId` |
+| UsersTable | `username` | — | — | `password_hash`（bcrypt）, `organization_id`, `created_at`, `updated_at` |
 | OrganizationsTable | `circuit` | — | — | `name`（組織名） |
-| RaceTable | `id` | — | — | `title`, `todayId`（大会ID） |
-| EntryTable | `raceId` | `carNum` | — | `className`, `entrantName`, `vehicleName`, `maintenanceArea`, `pitGarage`, `driverA`〜`driverF`, `startDriver` |
-| PitLogTable | `raceId` | `id`（ULID） | CarNumIndex（`carNum`） | `manager`, `pitNum`, `inTime`, `outTime`, `garageInTime`, `inDriver`, `outDriver`, `tire`, `oil`, `note` |
-| RetireTable | `raceId` | `carNum` | — | `retire`（boolean）, `reason` |
+| RaceTable | `id` | — | — | `title`, `today_id`（大会ID） |
+| EntryTable | `race_id` | `car_num` | — | `class_name`, `entrant_name`, `vehicle_name`, `maintenance_area`, `pit_garage`, `driver_a`〜`driver_f` |
+| StartDriverTable | `race_id` | `car_num` | — | `driver` |
+| PitAssignmentTable | `race_id` | `username#maintenance_area` | UsernameIndex（`username`） | `maintenance_area` |
+| PitLogTable | `race_id` | `id`（ULID） | CarNumIndex（`car_num`） | `username`, `pit_num`, `in_time`, `out_time`, `garage_in_time`, `driver_out`, `tire`, `oil`, `note`, `created_at`, `updated_at` |
+| PitLogHistoryTable | `pit_log_id` | `id`（ULID） | ModifiedByIndex（`modified_by`, `modified_at`） | `action_type`, `modified_by`, `modified_at`, `field_name`, `old_value`, `new_value` |
+| RetireTable | `race_id` | `car_num` | — | `is_retired`（boolean）, `reason` |
 
-- [ ] 上記 6 テーブルを `template.yaml` に定義
+- [ ] 上記 9 テーブルを `template.yaml` に定義
 - [ ] 全テーブルの BillingMode を `PAY_PER_REQUEST` に設定
 - [ ] `sam build` → `sam deploy` → AWS コンソールでテーブル作成を確認
 
@@ -56,13 +59,13 @@
 ---
 
 ### POST `/login` — ログイン
-> IF設計書: [login.md](IF/login.md)
+> IF設計書: [index.md](IF/index.md)
 
 - [ ] `functions/auth/login.mjs`
   - バリデーション（username / password）
   - UsersTable から `GetItem`（username で検索）
   - `bcryptjs` でパスワード照合
-  - `jsonwebtoken` で JWT 発行（ペイロード: username, organizationId）
+  - `jsonwebtoken` で JWT 発行（ペイロード: username, organization_id）
 - [ ] `template.yaml` に `LoginFunction` 追加（認証不要）
 - [ ] `events/login-event.json` 作成
 
@@ -73,7 +76,7 @@
 
 - [ ] `functions/auth/register.mjs`
   - バリデーション（username / password / circuit）
-  - パスワード強度チェック（大文字・小文字・数字を含む 6文字以上）
+  - パスワード強度チェック（半角英数字のみ・大文字小文字を有効化・6〜20文字）
   - `bcryptjs` でパスワードハッシュ化
   - UsersTable に `PutItem`（ConditionExpression で重複チェック）
 - [ ] `template.yaml` に `RegisterFunction` 追加（認証不要）
@@ -82,23 +85,23 @@
 ---
 
 ### POST `/user/me` — 大会ID照会
-> IF設計書: [conform1.md](IF/conform1.md)
+> IF設計書: [userMenu1.md](IF/userMenu1.md)
 
 - [ ] `functions/auth/conform.mjs`
-  - バリデーション（todayId: 半角英数・15文字以上）
-  - RaceTable を `Scan` して `todayId` と照合
+  - バリデーション（today_id: 半角英数・15文字以上）
+  - RaceTable を `Scan` して `today_id` と照合
 - [ ] `template.yaml` に `ConformFunction` 追加（認証必要）
 - [ ] `events/conform-event.json` 作成
 
 ---
 
 ### GET `/user/me` — プロフィール取得
-> IF設計書: [conform2.md](IF/conform2.md)
+> IF設計書: [userMenu2.md](IF/userMenu2.md)
 
 - [ ] `functions/auth/profile.mjs`
   - JWT から `username` を取得
   - UsersTable から `GetItem`
-  - OrganizationsTable から `GetItem`（organizationId で検索）
+  - OrganizationsTable から `GetItem`（organization_id で検索）
   - `username`, `circuit` を返却
 - [ ] `template.yaml` に `ProfileFunction` 追加（認証必要）
 - [ ] `events/profile-event.json` 作成
@@ -109,7 +112,7 @@
 > IF設計書: [forgetPass.md](IF/forgetPass.md)
 
 - [ ] `functions/auth/changePassword.mjs`
-  - バリデーション（username / password / newpassword: 半角英数大文字小文字・6文字以上）
+  - バリデーション（username / password / new_password: 半角英数大文字小文字・6〜20文字）
   - UsersTable から `GetItem`
   - `bcryptjs` で現在パスワード照合
   - 新パスワード ≠ 現在パスワード チェック
@@ -157,25 +160,25 @@
 
 - [ ] `functions/entry/bulkStartDriver.mjs`
   - CSV 受け取り
-  - EntryTable に `UpdateItem`（`startDriver` のみ更新）
+  - StartDriverTable に `BatchWriteItem`（`race_id`, `car_num`, `driver`）
 - [ ] `template.yaml` に Function 追加
 - [ ] `events/bulk-start-driver-event.json` 作成
 
 ---
 
 ### GET `/entries/init` — 初期データ取得
-> IF設計書: [autoEnter1.md](IF/autoEnter1.md)　／　autoEnter.html・handEnter.html 共通
+> IF設計書: [enterAuto1.md](IF/enterAuto1.md)　／　html_Enter/enterAuto.html・html_Enter/enterHand.html 共通
 
 - [ ] `functions/entry/init.mjs`
   - EntryTable から車両番号・ドライバー情報を取得
-  - `carNum`（配列）と `driver`（車番→ドライバー名配列のオブジェクト）を返却
+  - `car_num`（配列）と `driver`（車番→ドライバー名配列のオブジェクト）を返却
 - [ ] `template.yaml` に Function 追加
 - [ ] `events/init-event.json` 作成
 
 ---
 
 ### POST `/entries/auto` — 自動入力送信
-> IF設計書: [autoEnter2.md](IF/autoEnter2.md)
+> IF設計書: [enterAuto2.md](IF/enterAuto2.md)
 
 - [ ] `functions/pitlog/autoCreate.mjs`
   - バリデーション（`current` / `unsent`）
@@ -186,10 +189,10 @@
 ---
 
 ### POST `/entries/hand` — 手入力送信
-> IF設計書: [handEnter2.md](IF/handEnter2.md)
+> IF設計書: [enterHand2.md](IF/enterHand2.md)
 
 - [ ] `functions/pitlog/handCreate.mjs`
-  - バリデーション（carNum / outDriver / inTime / outTime / garageInTime / tire / oil / note）
+  - バリデーション（car_num / driver_out / in_time / out_time / garage_in_time / tire / oil / note）
   - PitLogTable に `PutItem`
 - [ ] `template.yaml` に Function 追加
 - [ ] `events/hand-create-event.json` 作成
@@ -200,33 +203,57 @@
 > IF設計書: [about the path of api.md](IF/about%20the%20path%20of%20api.md)
 
 - [ ] `functions/pitlog/update.mjs`
-  - `outTime = null` のレコードを `CarNumIndex`（GSI）で検索
-  - `UpdateItem`（outTime / outDriver を更新）
+  - `out_time = null` のレコードを `CarNumIndex`（GSI）で検索
+  - `UpdateItem`（out_time / driver_out を更新）
 - [ ] `template.yaml` に Function 追加
 - [ ] `events/garage-out-event.json` 作成
 
 ---
 
 ### GET `/entries/update` — 変更対象ピット記録取得
-> IF設計書: [update1.md](IF/update1.md)
+> IF設計書: [enterUpdate1.md](IF/enterUpdate1.md)
 
 - [ ] `functions/pitlog/updateGet.mjs`
-  - クエリパラメータ `carNum` で PitLogTable を Query
+  - クエリパラメータ `car_num` で PitLogTable を Query
   - RetireTable を別途取得して Lambda でマージ
-  - `garageInTime` が非 null の場合は `pitGap: null`
+  - `garage_in_time` が非 null の場合は `pit_gap: null`
 - [ ] `template.yaml` に Function 追加
 - [ ] `events/update-get-event.json` 作成
 
 ---
 
-### PUT `/entries/update` — 記録変更 / リタイア登録
-> IF設計書: [update2.md](IF/update2.md)
+### PUT `/entries/update` — 記録変更 / リタイア情報更新 / 取り消し
+> IF設計書: [enterUpdate2.md](IF/enterUpdate2.md)
 
 - [ ] `functions/pitlog/updatePut.mjs`
-  - selection=1: PitLogTable の指定レコードを `UpdateItem`
-  - selection=2: RetireTable に `PutItem`（retire=true / reason）
+  - selection=1: PitLogTable の指定レコードを `UpdateItem`（ピット記録変更）
+  - selection=2: RetireTable の `reason` を `UpdateItem`（リタイア情報更新）
+  - selection=3: RetireTable の `is_retired` を false に `UpdateItem`（リタイア取り消し）
 - [ ] `template.yaml` に Function 追加
 - [ ] `events/update-put-event.json` 作成
+
+---
+
+### GET `/entries/retire` — リタイア登録 初期データ取得
+> IF設計書: [enterRetire.md](IF/enterRetire.md)　／　html_Enter/enterRetire.html
+
+- [ ] `functions/pitlog/retireGet.mjs`
+  - EntryTable を全件 Scan（`maintenance_area` 昇順・`car_num` 昇順でソート）
+  - RetireTable を全件 Scan して `car_num` でマージ
+  - RetireTable に該当なしの場合は `is_retired: false / reason: ""`
+- [ ] `template.yaml` に Function 追加
+- [ ] `events/retire-get-event.json` 作成
+
+---
+
+### POST `/entries/retire` — リタイア登録
+> IF設計書: [enterRetire2.md](IF/enterRetire2.md)
+
+- [ ] `functions/pitlog/retireCreate.mjs`
+  - バリデーション（`car_num` / `reason`）
+  - RetireTable に `PutItem`（`is_retired=true` / `reason`）
+- [ ] `template.yaml` に Function 追加
+- [ ] `events/retire-create-event.json` 作成
 
 ---
 
@@ -236,8 +263,8 @@
 - [ ] `functions/pitlog/showAll.mjs`
   - PitLogTable を全件 Scan
   - RetireTable を全件 Scan
-  - Lambda 内で `carNum` をキーにマージ
-  - `garageInTime` が非 null の場合は `pitGap: null`
+  - Lambda 内で `car_num` をキーにマージ
+  - `garage_in_time` が非 null の場合は `pit_gap: null`
 - [ ] `template.yaml` に Function 追加
 - [ ] `events/show-all-event.json` 作成
 
@@ -248,7 +275,8 @@
 - [ ] `sam build` && `sam local start-api`
 - [ ] エントリー一括登録 → スタートドライバー一括登録 → ピットログ記録 の一連フローをテスト
 - [ ] ガレージストップ（POST /entries/auto → PUT /pitlog/garage-out）の 2 回送信フローをテスト
-- [ ] 記録変更・リタイア登録が正常動作することを確認
+- [ ] 記録変更・リタイア情報更新・リタイア取り消しが正常動作することを確認
+- [ ] リタイア登録（POST /entries/retire）→ リタイア取り消し（PUT /entries/update, selection=3）のフローをテスト
 - [ ] GET API でデータが正しく返却されることを確認
 - [ ] バリデーションエラー時に 400 が返却されることを確認
 
@@ -264,5 +292,7 @@
 | GET | `/race` | レース一覧取得 | `functions/race/list.mjs` |
 | POST | `/entry` | エントリー1件登録 | `functions/entry/create.mjs` |
 | GET | `/entry` | エントリー一覧取得 | `functions/entry/list.mjs` |
-| DELETE | `/entry/{carNum}` | エントリー削除 | `functions/entry/delete.mjs` |
+| DELETE | `/entry/{car_num}` | エントリー削除 | `functions/entry/delete.mjs` |
 | GET | `/pitlog` | ピットログ一覧取得 | `functions/pitlog/list.mjs` |
+
+
