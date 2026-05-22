@@ -14,7 +14,7 @@
 
 # 概要
 
-自動入力画面
+記録変更画面
 
 # インターフェース仕様
 
@@ -68,7 +68,11 @@
     "outDriver": "B",
     "inTime": "2026-05-06T10:00:00+09:00",
     "outTime": "2026-05-06T11:00:00+09:00",
-    "pitGap": 3600           //DB保存なし。outTime - inTime（秒）をレスポンス生成時に計算。garageInTime が非null の場合は null
+    "garageInTime": null,    //ガレージイン時刻。非null の場合は pitGap が null
+    "pitGap": 3600,          //DB保存なし。outTime - inTime（秒）をレスポンス生成時に計算。garageInTime が非null の場合は null
+    "tire": true,            //boolean
+    "oil": false,            //boolean
+    "note": "メモ"
   },
   "2": {
     "managerId": 2,
@@ -82,7 +86,11 @@
     "outDriver": "A",
     "inTime": "2026-05-06T15:00:00+09:00",
     "outTime": "2026-05-06T16:00:00+09:00",
-    "pitGap": 3600
+    "garageInTime": null,
+    "pitGap": 3600,
+    "tire": false,
+    "oil": true,
+    "note": ""
   }
 }
 ```
