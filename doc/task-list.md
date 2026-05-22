@@ -24,19 +24,20 @@
 
 ### DynamoDB テーブル定義（template.yaml に追記）
 
-| テーブル | PK | SK | GSI | 主なフィールド |
-|---|---|---|---|---|
-| UsersTable | `username` | — | — | `password_hash`（bcrypt）, `organization_id`, `created_at`, `updated_at` |
-| OrganizationsTable | `circuit` | — | — | `name`（組織名） |
-| RaceTable | `id` | — | — | `title`, `today_id`（大会ID） |
-| EntryTable | `race_id` | `car_num` | — | `class_name`, `entrant_name`, `vehicle_name`, `maintenance_area`, `pit_garage`, `driver_a`〜`driver_f` |
-| StartDriverTable | `race_id` | `car_num` | — | `driver` |
-| PitAssignmentTable | `race_id` | `username#maintenance_area` | UsernameIndex（`username`） | `maintenance_area` |
-| PitLogTable | `race_id` | `id`（ULID） | CarNumIndex（`car_num`） | `username`, `pit_num`, `in_time`, `out_time`, `garage_in_time`, `driver_out`, `tire`, `oil`, `note`, `created_at`, `updated_at` |
-| PitLogHistoryTable | `pit_log_id` | `id`（ULID） | ModifiedByIndex（`modified_by`, `modified_at`） | `action_type`, `modified_by`, `modified_at`, `field_name`, `old_value`, `new_value` |
-| RetireTable | `race_id` | `car_num` | — | `is_retired`（boolean）, `reason` |
+| テーブル           | PK           | SK                          | GSI                                             | 主なフィールド                                                                                                                  |
+| ------------------ | ------------ | --------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| UsersTable         | `username`   | —                           | —                                               | `password_hash`（bcrypt）, `organization_id`, `created_at`, `updated_at`                                                        |
+| OrganizationsTable | `circuit`    | —                           | —                                               | `name`（組織名）                                                                                                                |
+| RaceTable          | `id`         | —                           | —                                               | `title`, `today_id`（大会ID）                                                                                                   |
+| EntryTable         | `race_id`    | `car_num`                   | —                                               | `class_name`, `entrant_name`, `vehicle_name`, `maintenance_area`, `pit_garage`, `driver_a`〜`driver_f`                          |
+| StartDriverTable   | `race_id`    | `car_num`                   | —                                               | `driver`                                                                                                                        |
+| PitAssignmentTable | `race_id`    | `username#maintenance_area` | UsernameIndex（`username`）                     | `maintenance_area`                                                                                                              |
+| PitLogTable        | `race_id`    | `id`（ULID）                | CarNumIndex（`car_num`）                        | `username`, `pit_num`, `in_time`, `out_time`, `garage_in_time`, `driver_out`, `tire`, `oil`, `note`, `created_at`, `updated_at` |
+| PitLogHistoryTable | `pit_log_id` | `id`（ULID）                | ModifiedByIndex（`modified_by`, `modified_at`） | `action_type`, `modified_by`, `modified_at`, `field_name`, `old_value`, `new_value`                                             |
+| RetireTable        | `race_id`    | `car_num`                   | —                                               | `is_retired`（boolean）, `reason`                                                                                               |
+| OutpostLogTable    | `race_id`    | `id`（ULID）                | UsernameIndex（`username`）                     | `username`, `created_at`                                                                                                        |
 
-- [ ] 上記 9 テーブルを `template.yaml` に定義
+- [ ] 上記 10 テーブルを `template.yaml` に定義
 - [ ] 全テーブルの BillingMode を `PAY_PER_REQUEST` に設定
 - [ ] `sam build` → `sam deploy` → AWS コンソールでテーブル作成を確認
 
@@ -59,6 +60,7 @@
 ---
 
 ### POST `/login` — ログイン
+
 > IF設計書: [index.md](IF/index.md)
 
 - [ ] `functions/auth/login.mjs`
@@ -72,6 +74,7 @@
 ---
 
 ### POST `/user` — ユーザー登録
+
 > IF設計書: [regist.md](IF/regist.md)
 
 - [ ] `functions/auth/register.mjs`
@@ -85,17 +88,19 @@
 ---
 
 ### POST `/user/me` — 大会ID照会
+
 > IF設計書: [userMenu1.md](IF/userMenu1.md)
 
 - [ ] `functions/auth/conform.mjs`
-  - バリデーション（today_id: 半角英数・15文字以上）
-  - RaceTable を `Scan` して `today_id` と照合
+  - バリデーション（`todayId`: 半角英数・15文字以上）
+  - RaceTable を `Scan` して `todayId` と照合
 - [ ] `template.yaml` に `ConformFunction` 追加（認証必要）
 - [ ] `events/conform-event.json` 作成
 
 ---
 
 ### GET `/user/me` — プロフィール取得
+
 > IF設計書: [userMenu2.md](IF/userMenu2.md)
 
 - [ ] `functions/auth/profile.mjs`
@@ -109,13 +114,14 @@
 ---
 
 ### POST `/user/password` — パスワード変更
+
 > IF設計書: [forgetPass.md](IF/forgetPass.md)
 
 - [ ] `functions/auth/changePassword.mjs`
-  - バリデーション（username / password / new_password: 半角英数大文字小文字・6〜20文字）
+  - バリデーション（`username` / `password` / `newpassword`: 半角英数大文字小文字・6〜20文字）
   - UsersTable から `GetItem`
   - `bcryptjs` で現在パスワード照合
-  - 新パスワード ≠ 現在パスワード チェック
+  - 新パスワード ≠ 現在パスワード・過去パスワード チェック
   - `bcryptjs` で新パスワードハッシュ化 → `UpdateItem`
 - [ ] `template.yaml` に `ChangePasswordFunction` 追加（認証必要）
 - [ ] `events/change-password-event.json` 作成
@@ -144,29 +150,8 @@
 
 ---
 
-### POST `/entry/bulk` — エントリー一括登録（CSV）
-> IF設計書: [about the path of api.md](IF/about%20the%20path%20of%20api.md)
-
-- [ ] `functions/entry/bulkCreate.mjs`
-  - CSV 受け取り
-  - EntryTable に `BatchWriteItem`
-- [ ] `template.yaml` に Function 追加
-- [ ] `events/bulk-create-event.json` 作成
-
----
-
-### POST `/entry/start-driver/bulk` — スタートドライバー一括登録（CSV）
-> IF設計書: [about the path of api.md](IF/about%20the%20path%20of%20api.md)
-
-- [ ] `functions/entry/bulkStartDriver.mjs`
-  - CSV 受け取り
-  - StartDriverTable に `BatchWriteItem`（`race_id`, `car_num`, `driver`）
-- [ ] `template.yaml` に Function 追加
-- [ ] `events/bulk-start-driver-event.json` 作成
-
----
-
 ### GET `/entries/init` — 初期データ取得
+
 > IF設計書: [enterAuto1.md](IF/enterAuto1.md)　／　html_Enter/enterAuto.html・html_Enter/enterHand.html 共通
 
 - [ ] `functions/entry/init.mjs`
@@ -178,6 +163,7 @@
 ---
 
 ### POST `/entries/auto` — 自動入力送信
+
 > IF設計書: [enterAuto2.md](IF/enterAuto2.md)
 
 - [ ] `functions/pitlog/autoCreate.mjs`
@@ -189,40 +175,33 @@
 ---
 
 ### POST `/entries/hand` — 手入力送信
+
 > IF設計書: [enterHand2.md](IF/enterHand2.md)
 
 - [ ] `functions/pitlog/handCreate.mjs`
-  - バリデーション（car_num / driver_out / in_time / out_time / garage_in_time / tire / oil / note）
+  - バリデーション（`outDriver` / `inTime` / `outTime` / `garageInTime` / `tire` / `oil` / `note`）
   - PitLogTable に `PutItem`
 - [ ] `template.yaml` に Function 追加
 - [ ] `events/hand-create-event.json` 作成
 
 ---
 
-### PUT `/pitlog/garage-out` — ガレージアウト更新
-> IF設計書: [about the path of api.md](IF/about%20the%20path%20of%20api.md)
-
-- [ ] `functions/pitlog/update.mjs`
-  - `out_time = null` のレコードを `CarNumIndex`（GSI）で検索
-  - `UpdateItem`（out_time / driver_out を更新）
-- [ ] `template.yaml` に Function 追加
-- [ ] `events/garage-out-event.json` 作成
-
----
-
 ### GET `/entries/update` — 変更対象ピット記録取得
+
 > IF設計書: [enterUpdate1.md](IF/enterUpdate1.md)
 
 - [ ] `functions/pitlog/updateGet.mjs`
-  - クエリパラメータ `car_num` で PitLogTable を Query
+  - クエリパラメータ `carNum` で PitLogTable を Query
+  - EntryTable から `className`・`teamName` を取得してマージ
   - RetireTable を別途取得して Lambda でマージ
-  - `garage_in_time` が非 null の場合は `pit_gap: null`
+  - `garageInTime` が非 null の場合は `pitGap: null`
 - [ ] `template.yaml` に Function 追加
 - [ ] `events/update-get-event.json` 作成
 
 ---
 
 ### PUT `/entries/update` — 記録変更 / リタイア情報更新 / 取り消し
+
 > IF設計書: [enterUpdate2.md](IF/enterUpdate2.md)
 
 - [ ] `functions/pitlog/updatePut.mjs`
@@ -235,6 +214,7 @@
 ---
 
 ### GET `/entries/retire` — リタイア登録 初期データ取得
+
 > IF設計書: [enterRetire.md](IF/enterRetire.md)　／　html_Enter/enterRetire.html
 
 - [ ] `functions/pitlog/retireGet.mjs`
@@ -247,10 +227,11 @@
 ---
 
 ### POST `/entries/retire` — リタイア登録
+
 > IF設計書: [enterRetire2.md](IF/enterRetire2.md)
 
 - [ ] `functions/pitlog/retireCreate.mjs`
-  - バリデーション（`car_num` / `reason`）
+  - バリデーション（`carNum` / `reason`（必須））
   - RetireTable に `PutItem`（`is_retired=true` / `reason`）
 - [ ] `template.yaml` に Function 追加
 - [ ] `events/retire-create-event.json` 作成
@@ -258,13 +239,18 @@
 ---
 
 ### GET `/entries/show` — 全ピット情報取得
+
 > IF設計書: [showAll.md](IF/showAll.md)　／　showAll.html・output.html 共通
 
 - [ ] `functions/pitlog/showAll.mjs`
   - PitLogTable を全件 Scan
   - RetireTable を全件 Scan
+  - StartDriverTable を全件 Scan
   - Lambda 内で `car_num` をキーにマージ
-  - `garage_in_time` が非 null の場合は `pit_gap: null`
+  - `inDriver` の算出: `pit_num=1` は StartDriverTable の `driver`、`pit_num=2` 以降は前回ピットの `outDriver`
+  - 論理チェック: `pit_num=2` 以降、前回ピットの `outDriver` と今回の `inDriver` が一致することを検証
+  - `garageInTime` が非 null の場合は `pitGap: null`
+  - クエリパラメータ `act=1` かつ `race_id` が指定されている場合、OutpostLogTable に `username`（JWTから取得）/ `race_id` / `created_at` を `PutItem`
 - [ ] `template.yaml` に Function 追加
 - [ ] `events/show-all-event.json` 作成
 
@@ -274,7 +260,6 @@
 
 - [ ] `sam build` && `sam local start-api`
 - [ ] エントリー一括登録 → スタートドライバー一括登録 → ピットログ記録 の一連フローをテスト
-- [ ] ガレージストップ（POST /entries/auto → PUT /pitlog/garage-out）の 2 回送信フローをテスト
 - [ ] 記録変更・リタイア情報更新・リタイア取り消しが正常動作することを確認
 - [ ] リタイア登録（POST /entries/retire）→ リタイア取り消し（PUT /entries/update, selection=3）のフローをテスト
 - [ ] GET API でデータが正しく返却されることを確認
@@ -282,17 +267,17 @@
 
 ---
 
-## IF設計書なし API（管理者用・用途検討中）
+## 実装前確認 API（管理者用・1次情報登録系）
 
-> フロント画面に対応するHTMLなし。必要かどうか実装前に確認すること。
+> 必要かどうか実装前に確認すること。
 
-| メソッド | パス | 概要 | Lambda ファイル候補 |
-|---|---|---|---|
-| POST | `/race` | レース登録 | `functions/race/create.mjs` |
-| GET | `/race` | レース一覧取得 | `functions/race/list.mjs` |
-| POST | `/entry` | エントリー1件登録 | `functions/entry/create.mjs` |
-| GET | `/entry` | エントリー一覧取得 | `functions/entry/list.mjs` |
-| DELETE | `/entry/{car_num}` | エントリー削除 | `functions/entry/delete.mjs` |
-| GET | `/pitlog` | ピットログ一覧取得 | `functions/pitlog/list.mjs` |
-
-
+| メソッド | パス                       | 概要                              | Lambda ファイル候補                   | IF設計書                                                        |
+| -------- | -------------------------- | --------------------------------- | ------------------------------------- | --------------------------------------------------------------- |
+| POST     | `/entry/bulk`              | エントリー一括登録（CSV）         | `functions/entry/bulkCreate.mjs`      | [about the path of api.md](IF/about%20the%20path%20of%20api.md) |
+| POST     | `/entry/start-driver/bulk` | スタートドライバー一括登録（CSV） | `functions/entry/bulkStartDriver.mjs` | [about the path of api.md](IF/about%20the%20path%20of%20api.md) |
+| POST     | `/race`                    | レース登録                        | `functions/race/create.mjs`           | なし                                                            |
+| GET      | `/race`                    | レース一覧取得                    | `functions/race/list.mjs`             | なし                                                            |
+| POST     | `/entry`                   | エントリー1件登録                 | `functions/entry/create.mjs`          | なし                                                            |
+| GET      | `/entry`                   | エントリー一覧取得                | `functions/entry/list.mjs`            | なし                                                            |
+| DELETE   | `/entry/{car_num}`         | エントリー削除                    | `functions/entry/delete.mjs`          | なし                                                            |
+| GET      | `/pitlog`                  | ピットログ一覧取得                | `functions/pitlog/list.mjs`           | なし                                                            |

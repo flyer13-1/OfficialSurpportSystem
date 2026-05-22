@@ -15,6 +15,5 @@ output.html /entries/show
 
 --- 新規追加API ---
 /user/password (POST: パスワード変更)
-/pitlog/garage-out (PUT: ガレージアウト更新)
 /entry/bulk (POST: エントリー一括登録)
 /entry/start-driver/bulk (POST: スタートドライバー一括登録)

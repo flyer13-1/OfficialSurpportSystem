@@ -18,6 +18,7 @@
 -- ・pit_log に created_at / updated_at を追加
 -- ・users.username に CHECK制約追加（ひらがな・カタカナ・漢字 4〜20文字）/ VARCHAR(20)に縮小
 -- ・race.today_id に CHECK制約追加（半角英数字 15文字以上）
+-- ・outpost_log テーブルを新規追加（showAll API の act=1 アクセスログ）
 -----------------
 
 
@@ -157,6 +158,18 @@ CREATE TABLE retire (
     reason     TEXT,                           --リタイア理由（selection=2 の reason）
     PRIMARY KEY (race_id, car_num),
     FOREIGN KEY (race_id, car_num) REFERENCES entry(race_id, car_num)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- outpostsアクセスログ（showAll API の act=1 アクセス時に記録）
+
+CREATE TABLE outpost_log (
+    id          INT         NOT NULL AUTO_INCREMENT,
+    race_id     INT         NOT NULL,               --対象レースID
+    username    VARCHAR(20) NOT NULL,               --アクセスした担当者名（JWTから取得）
+    created_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (race_id) REFERENCES race(id),
+    FOREIGN KEY (username) REFERENCES users(username)
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 
