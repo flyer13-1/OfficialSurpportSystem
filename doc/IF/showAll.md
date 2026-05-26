@@ -32,10 +32,7 @@
 
 ### クエリパラメータ
 
-| パラメータ | 型 | 必須 | 説明 |
-|---|---|---|---|
-| act | integer | 任意 | `1` を指定するとアクセスログを記録する |
-| race_id | integer | act=1 のとき必須 | 記録対象のレースID。OutpostLogTable に username（JWTから取得）・race_id・アクセス日時を保存する |
+なし
 
 ### リクエストボディ
 
@@ -59,17 +56,17 @@
     "manager": "あそう太郎",
     "pitNum": 1,
     "carNum": 5,
-    "className": "st1",      //EntryTable から carNum で結合
-    "teamName": "TeamA",     //EntryTable から carNum で結合
-    "retire": false,         //boolean。RetireTable から carNum で結合
+    "className": "st1", //EntryTable から carNum で結合
+    "teamName": "TeamA", //EntryTable から carNum で結合
+    "retire": false, //boolean。RetireTable から carNum で結合
     "inDriver": "A",
     "outDriver": "B",
     "inTime": "2026-05-06T10:00:00+09:00",
     "outTime": "2026-05-06T11:00:00+09:00",
-    "garageInTime": null,    //ガレージイン時刻。非null の場合は pitGap が null
-    "pitGap": 3600,          //DB保存なし。outTime - inTime（秒）をレスポンス生成時に計算。garageInTime が非null の場合は null
-    "tire": true,            //boolean
-    "oil": false,            //boolean
+    "garageInTime": null, //ガレージイン時刻。非null の場合は pitGap が null
+    "pitGap": 3600, //DB保存なし。outTime - inTime（秒）をレスポンス生成時に計算。garageInTime が非null の場合は null
+    "tire": true, //boolean
+    "oil": false, //boolean
     "note": "メモ"
   },
   "2": {
@@ -79,7 +76,7 @@
     "carNum": 5,
     "className": "st1",
     "teamName": "TeamA",
-    "retire": false,         //boolean
+    "retire": false, //boolean
     "inDriver": "B",
     "outDriver": "A",
     "inTime": "2026-05-06T15:00:00+09:00",
@@ -97,13 +94,13 @@
     "carNum": 6,
     "className": "st1",
     "teamName": "TeamA",
-    "retire": false,         //boolean
+    "retire": false, //boolean
     "inDriver": "B",
     "outDriver": "A",
-    "inTime": null,          //garage-outパターン（ピットスタート）のため入時刻なし
+    "inTime": null, //garage-outパターン（ピットスタート）のため入時刻なし
     "outTime": "2026-05-06T16:00:00+09:00",
     "garageInTime": null,
-    "pitGap": null,          //inTime が null のため計算不可
+    "pitGap": null, //inTime が null のため計算不可
     "tire": false,
     "oil": false,
     "note": ""
