@@ -1,8 +1,15 @@
 version = 0.1
 
 [default.deploy.parameters]
-stack_name        = "OfficialSupportSystem-dev"
+stack_name        = "OSS"
 region            = "ap-northeast-1"
 confirm_changeset = true
-capabilities      = "CAPABILITY_IAM"
-parameter_overrides = "Env=dev"
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+parameter_overrides = "Env=\"dev\""
+resolve_s3 = true
+s3_prefix = "OSS"
+disable_rollback = true
+image_repositories = []
+
+[default.global.parameters]
+region = "ap-northeast-1"

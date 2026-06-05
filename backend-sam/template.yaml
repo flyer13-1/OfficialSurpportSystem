@@ -21,7 +21,10 @@ Globals:
     Environment:
       Variables:
         ENV: !Ref Env
-        JWT_SECRET: !Sub "{{resolve:ssm:/OfficialSupportSystem/${Env}/JWT_SECRET}}"
+
+        # 一旦固定値
+        JWT_SECRET: "test-secret"
+
         USERS_TABLE: !Ref UsersTable
         ORGANIZATIONS_TABLE: !Ref OrganizationsTable
         RACE_TABLE: !Ref RaceTable
@@ -32,29 +35,48 @@ Globals:
         PIT_LOG_HISTORY_TABLE: !Ref PitLogHistoryTable
         RETIRE_TABLE: !Ref RetireTable
         OUTPOST_LOG_TABLE: !Ref OutpostLogTable
-    Policies:
-      - DynamoDBCrudPolicy:
-          TableName: !Ref UsersTable
-      - DynamoDBCrudPolicy:
-          TableName: !Ref OrganizationsTable
-      - DynamoDBCrudPolicy:
-          TableName: !Ref RaceTable
-      - DynamoDBCrudPolicy:
-          TableName: !Ref EntryTable
-      - DynamoDBCrudPolicy:
-          TableName: !Ref StartDriverTable
-      - DynamoDBCrudPolicy:
-          TableName: !Ref PitAssignmentTable
-      - DynamoDBCrudPolicy:
-          TableName: !Ref PitLogTable
-      - DynamoDBCrudPolicy:
-          TableName: !Ref PitLogHistoryTable
-      - DynamoDBCrudPolicy:
-          TableName: !Ref RetireTable
-      - DynamoDBCrudPolicy:
-          TableName: !Ref OutpostLogTable
 
 Resources:
+  # ===== IAM Role（全Lambda共通）=====
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "OfficialSupportSystem-${Env}-LambdaRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBCrudPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:BatchGetItem
+                Resource: "*"
+        - PolicyName: SSMParameterPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/OfficialSupportSystem/*"
+
   # ===== Lambda Layer（共通処理）=====
   CommonLayer:
     Type: AWS::Serverless::LayerVersion
@@ -75,7 +97,7 @@ Resources:
         AllowHeaders: "'Content-Type,Authorization'"
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
       Auth:
-        DefaultAuthorizer: NONE
+        DefaultAuthorizer: LambdaAuthorizer
         Authorizers:
           LambdaAuthorizer:
             FunctionArn: !GetAtt AuthorizerFunction.Arn
@@ -91,6 +113,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-Authorizer"
       CodeUri: functions/auth/
       Handler: authorizer.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
 
   # ===== Phase 2: 認証・ユーザー管理 API =====
 
@@ -100,6 +123,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-Login"
       CodeUri: functions/auth/
       Handler: login.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -107,6 +131,8 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /login
             Method: POST
+            Auth:
+              Authorizer: NONE
 
   RegisterFunction:
     Type: AWS::Serverless::Function
@@ -114,6 +140,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-Register"
       CodeUri: functions/auth/
       Handler: register.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -121,6 +148,8 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /user
             Method: POST
+            Auth:
+              Authorizer: NONE
 
   ConformFunction:
     Type: AWS::Serverless::Function
@@ -128,6 +157,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-Conform"
       CodeUri: functions/auth/
       Handler: conform.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -144,6 +174,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-Profile"
       CodeUri: functions/auth/
       Handler: profile.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -160,6 +191,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-ChangePassword"
       CodeUri: functions/auth/
       Handler: changePassword.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -178,6 +210,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-Init"
       CodeUri: functions/entry/
       Handler: init.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -194,6 +227,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-AutoCreate"
       CodeUri: functions/pitlog/
       Handler: autoCreate.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -210,6 +244,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-HandCreate"
       CodeUri: functions/pitlog/
       Handler: handCreate.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -226,6 +261,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-UpdateGet"
       CodeUri: functions/pitlog/
       Handler: updateGet.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -242,6 +278,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-UpdatePut"
       CodeUri: functions/pitlog/
       Handler: updatePut.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -258,6 +295,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-RetireGet"
       CodeUri: functions/pitlog/
       Handler: retireGet.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -274,6 +312,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-RetireCreate"
       CodeUri: functions/pitlog/
       Handler: retireCreate.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -290,6 +329,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-ShowAll"
       CodeUri: functions/pitlog/
       Handler: showAll.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -370,7 +410,7 @@ Resources:
         - AttributeName: car_num
           KeyType: RANGE
 
-PitAssignmentTable:
+  PitAssignmentTable:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Sub "OfficialSupportSystem-${Env}-PitAssignment"
