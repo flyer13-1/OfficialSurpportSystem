@@ -1,0 +1,8 @@
+{
+  "httpMethod": "POST",
+  "path": "/user",
+  "headers": { "Content-Type": "application/json" },
+  "queryStringParameters": null,
+  "body": "{\"username\":\"てすと太郎\",\"password\":\"Test1234\",\"circuit\":\"1\"}",
+  "requestContext": { "authorizer": {} }
+}

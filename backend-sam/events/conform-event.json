@@ -1,0 +1,8 @@
+{
+  "httpMethod": "POST",
+  "path": "/user/me",
+  "headers": { "Content-Type": "application/json", "Authorization": "Bearer <TOKEN>" },
+  "queryStringParameters": null,
+  "body": "{\"todayId\":\"ABC123XYZ456789\"}",
+  "requestContext": { "authorizer": { "username": "てすと太郎", "organization_id": "1" } }
+}

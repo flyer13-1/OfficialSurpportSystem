@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where gh *)",
+      "Bash(git remote *)",
+      "Read(//usr/local/bin/**)",
+      "Read(//c/Users/x24u013/bin/**)",
+      "Read(//c/Users/x24u013/.config/gh/**)",
+      "Bash(curl -s -H \"Authorization: token $\\(git config --get github.token || cat ~/.config/gh/hosts.yml)",
+      "Bash(python3 -c \"import sys,json; prs=json.load\\(sys.stdin\\); [print\\(f'#{p[\\\\\"number\\\\\"]} {p[\\\\\"title\\\\\"]} \\({p[\\\\\"head\\\\\"][\\\\\"ref\\\\\"]}\\)'\\) for p in prs]\")",
+      "Bash(ls /mnt/c/Users/ 2>/dev/null | head -5; ls /c/Users/ 2>/dev/null | head -5)",
+      "Read(//mnt/c/**)",
+      "Read(//c/Users//**)",
+      "Bash(git add *)",
+      "Bash(git rm *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
+    ]
+  }
+}

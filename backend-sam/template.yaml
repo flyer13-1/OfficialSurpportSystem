@@ -1,0 +1,502 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: OfficialSupportSystem - AWS SAM Backend
+
+# ===== Parameters =====
+Parameters:
+  Env:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, stg, prod]
+
+# ===== Globals =====
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Timeout: 30
+    MemorySize: 256
+    Architectures: [x86_64]
+    Layers:
+      - !Ref CommonLayer
+    Environment:
+      Variables:
+        ENV: !Ref Env
+        JWT_SECRET: !Sub "{{resolve:ssm:/OfficialSupportSystem/${Env}/JWT_SECRET}}"
+        USERS_TABLE: !Ref UsersTable
+        ORGANIZATIONS_TABLE: !Ref OrganizationsTable
+        RACE_TABLE: !Ref RaceTable
+        ENTRY_TABLE: !Ref EntryTable
+        START_DRIVER_TABLE: !Ref StartDriverTable
+        PIT_ASSIGNMENT_TABLE: !Ref PitAssignmentTable
+        PIT_LOG_TABLE: !Ref PitLogTable
+        PIT_LOG_HISTORY_TABLE: !Ref PitLogHistoryTable
+        RETIRE_TABLE: !Ref RetireTable
+        OUTPOST_LOG_TABLE: !Ref OutpostLogTable
+    Policies:
+      - DynamoDBCrudPolicy:
+          TableName: !Ref UsersTable
+      - DynamoDBCrudPolicy:
+          TableName: !Ref OrganizationsTable
+      - DynamoDBCrudPolicy:
+          TableName: !Ref RaceTable
+      - DynamoDBCrudPolicy:
+          TableName: !Ref EntryTable
+      - DynamoDBCrudPolicy:
+          TableName: !Ref StartDriverTable
+      - DynamoDBCrudPolicy:
+          TableName: !Ref PitAssignmentTable
+      - DynamoDBCrudPolicy:
+          TableName: !Ref PitLogTable
+      - DynamoDBCrudPolicy:
+          TableName: !Ref PitLogHistoryTable
+      - DynamoDBCrudPolicy:
+          TableName: !Ref RetireTable
+      - DynamoDBCrudPolicy:
+          TableName: !Ref OutpostLogTable
+
+Resources:
+  # ===== Lambda Layer（共通処理）=====
+  CommonLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub "OfficialSupportSystem-${Env}-CommonLayer"
+      ContentUri: layers/common/
+      CompatibleRuntimes: [nodejs22.x]
+      RetentionPolicy: Delete
+
+  # ===== API Gateway =====
+  ApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub "OfficialSupportSystem-${Env}-Api"
+      StageName: !Ref Env
+      Cors:
+        AllowOrigin: "'*'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+      Auth:
+        DefaultAuthorizer: NONE
+        Authorizers:
+          LambdaAuthorizer:
+            FunctionArn: !GetAtt AuthorizerFunction.Arn
+            Identity:
+              Headers: [Authorization]
+            AuthorizerPayloadFormatVersion: "1.0"
+            EnableSimpleResponses: false
+
+  # ===== Lambda Authorizer =====
+  AuthorizerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-Authorizer"
+      CodeUri: functions/auth/
+      Handler: authorizer.handler
+
+  # ===== Phase 2: 認証・ユーザー管理 API =====
+
+  LoginFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-Login"
+      CodeUri: functions/auth/
+      Handler: login.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /login
+            Method: POST
+
+  RegisterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-Register"
+      CodeUri: functions/auth/
+      Handler: register.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /user
+            Method: POST
+
+  ConformFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-Conform"
+      CodeUri: functions/auth/
+      Handler: conform.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /user/me
+            Method: POST
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  ProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-Profile"
+      CodeUri: functions/auth/
+      Handler: profile.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /user/me
+            Method: GET
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  ChangePasswordFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-ChangePassword"
+      CodeUri: functions/auth/
+      Handler: changePassword.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /user/password
+            Method: POST
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  # ===== Phase 3: コア API =====
+
+  InitFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-Init"
+      CodeUri: functions/entry/
+      Handler: init.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /entries/init
+            Method: GET
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  AutoCreateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-AutoCreate"
+      CodeUri: functions/pitlog/
+      Handler: autoCreate.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /entries/auto
+            Method: POST
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  HandCreateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-HandCreate"
+      CodeUri: functions/pitlog/
+      Handler: handCreate.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /entries/hand
+            Method: POST
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  UpdateGetFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-UpdateGet"
+      CodeUri: functions/pitlog/
+      Handler: updateGet.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /entries/update
+            Method: GET
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  UpdatePutFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-UpdatePut"
+      CodeUri: functions/pitlog/
+      Handler: updatePut.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /entries/update
+            Method: PUT
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  RetireGetFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-RetireGet"
+      CodeUri: functions/pitlog/
+      Handler: retireGet.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /entries/retire
+            Method: GET
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  RetireCreateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-RetireCreate"
+      CodeUri: functions/pitlog/
+      Handler: retireCreate.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /entries/retire
+            Method: POST
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  ShowAllFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-ShowAll"
+      CodeUri: functions/pitlog/
+      Handler: showAll.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /entries/show
+            Method: GET
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  # ===== Phase 1: DynamoDB テーブル =====
+
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "OfficialSupportSystem-${Env}-Users"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: username
+          AttributeType: S
+      KeySchema:
+        - AttributeName: username
+          KeyType: HASH
+
+  OrganizationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "OfficialSupportSystem-${Env}-Organizations"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: circuit
+          AttributeType: N
+      KeySchema:
+        - AttributeName: circuit
+          KeyType: HASH
+
+  RaceTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "OfficialSupportSystem-${Env}-Race"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  EntryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "OfficialSupportSystem-${Env}-Entry"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: race_id
+          AttributeType: S
+        - AttributeName: car_num
+          AttributeType: N
+      KeySchema:
+        - AttributeName: race_id
+          KeyType: HASH
+        - AttributeName: car_num
+          KeyType: RANGE
+
+  StartDriverTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "OfficialSupportSystem-${Env}-StartDriver"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: race_id
+          AttributeType: S
+        - AttributeName: car_num
+          AttributeType: N
+      KeySchema:
+        - AttributeName: race_id
+          KeyType: HASH
+        - AttributeName: car_num
+          KeyType: RANGE
+
+PitAssignmentTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "OfficialSupportSystem-${Env}-PitAssignment"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: race_id
+          AttributeType: S
+        - AttributeName: username
+          AttributeType: S
+        - AttributeName: maintenance_area
+          AttributeType: S
+      KeySchema:
+        - AttributeName: race_id
+          KeyType: HASH
+        - AttributeName: username
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: UsernameIndex
+          KeySchema:
+            - AttributeName: username
+              KeyType: HASH
+            - AttributeName: maintenance_area
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  PitLogTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "OfficialSupportSystem-${Env}-PitLog"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: race_id
+          AttributeType: S
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: car_num
+          AttributeType: N
+      KeySchema:
+        - AttributeName: race_id
+          KeyType: HASH
+        - AttributeName: id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: CarNumIndex
+          KeySchema:
+            - AttributeName: car_num
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  PitLogHistoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "OfficialSupportSystem-${Env}-PitLogHistory"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pit_log_id
+          AttributeType: S
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: modified_by
+          AttributeType: S
+        - AttributeName: modified_at
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pit_log_id
+          KeyType: HASH
+        - AttributeName: id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: ModifiedByIndex
+          KeySchema:
+            - AttributeName: modified_by
+              KeyType: HASH
+            - AttributeName: modified_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  RetireTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "OfficialSupportSystem-${Env}-Retire"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: race_id
+          AttributeType: S
+        - AttributeName: car_num
+          AttributeType: N
+      KeySchema:
+        - AttributeName: race_id
+          KeyType: HASH
+        - AttributeName: car_num
+          KeyType: RANGE
+
+  OutpostLogTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "OfficialSupportSystem-${Env}-OutpostLog"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: race_id
+          AttributeType: S
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: username
+          AttributeType: S
+      KeySchema:
+        - AttributeName: race_id
+          KeyType: HASH
+        - AttributeName: id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: UsernameIndex
+          KeySchema:
+            - AttributeName: username
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+# ===== Outputs =====
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Env}/"
+  ApiId:
+    Description: API Gateway ID
+    Value: !Ref ApiGateway

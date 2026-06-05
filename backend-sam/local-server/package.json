@@ -1,0 +1,10 @@
+{
+  "name": "local-server",
+  "version": "1.0.0",
+  "description": "sam local start-api の代替ローカル開発サーバー",
+  "type": "module",
+  "dependencies": {
+    "dotenv": "^16.0.0",
+    "express": "^4.19.0"
+  }
+}

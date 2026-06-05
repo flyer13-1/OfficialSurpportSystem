@@ -37,6 +37,7 @@ CREATE TABLE users (
     username        VARCHAR(20)  NOT NULL UNIQUE,  --担当者名（ひらがな・カタカナ・漢字 4〜20文字）
     password_hash   CHAR(60)     NOT NULL,         --ハッシュ化されたパスワード（bcrypt 60字）
     organization_id INT          NOT NULL,
+    admin       BOOLEAN      NOT NULL DEFAULT FALSE, --管理者フラグ（TRUE=管理者 FALSE=一般）
     created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
