@@ -10,6 +10,7 @@ Parameters:
     AllowedValues: [dev, stg, prod]
 
 # ===== Globals =====
+# PoliciesはGlobalsに書けないため削除。各FunctionはRoleで権限を付与する
 Globals:
   Function:
     Runtime: nodejs22.x
@@ -32,30 +33,52 @@ Globals:
         PIT_LOG_HISTORY_TABLE: !Ref PitLogHistoryTable
         RETIRE_TABLE: !Ref RetireTable
         OUTPOST_LOG_TABLE: !Ref OutpostLogTable
-    Policies:
-      - DynamoDBCrudPolicy:
-          TableName: !Ref UsersTable
-      - DynamoDBCrudPolicy:
-          TableName: !Ref OrganizationsTable
-      - DynamoDBCrudPolicy:
-          TableName: !Ref RaceTable
-      - DynamoDBCrudPolicy:
-          TableName: !Ref EntryTable
-      - DynamoDBCrudPolicy:
-          TableName: !Ref StartDriverTable
-      - DynamoDBCrudPolicy:
-          TableName: !Ref PitAssignmentTable
-      - DynamoDBCrudPolicy:
-          TableName: !Ref PitLogTable
-      - DynamoDBCrudPolicy:
-          TableName: !Ref PitLogHistoryTable
-      - DynamoDBCrudPolicy:
-          TableName: !Ref RetireTable
-      - DynamoDBCrudPolicy:
-          TableName: !Ref OutpostLogTable
 
 Resources:
+  # ===== IAM Role =====
+  # 全Lambda共通で使うIAMロール。DynamoDB全操作とSSMパラメータ取得を許可
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "OfficialSupportSystem-${Env}-LambdaRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # CloudWatch Logsへの書き込みを許可（Lambda基本実行ロール）
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBCrudPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:BatchGetItem
+                Resource: "*" # 全テーブルを許可（後で絞り込み可）
+        - PolicyName: SSMParameterPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/OfficialSupportSystem/*"
+
   # ===== Lambda Layer（共通処理）=====
+  # dynamodb.js / generateId / responseヘルパーなどを格納
   CommonLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
@@ -70,36 +93,43 @@ Resources:
     Properties:
       Name: !Sub "OfficialSupportSystem-${Env}-Api"
       StageName: !Ref Env
+      # CORS設定: ブラウザからのクロスオリジンリクエストを許可
       Cors:
         AllowOrigin: "'*'"
         AllowHeaders: "'Content-Type,Authorization'"
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+      # 認証設定
       Auth:
-        DefaultAuthorizer: NONE
+        DefaultAuthorizer: LambdaAuthorizer # デフォルトはJWT認証必須
+        AddDefaultAuthorizerToCorsPreflight: false # OPTIONSは認証不要（これがないとCORSが弾かれる）
         Authorizers:
           LambdaAuthorizer:
             FunctionArn: !GetAtt AuthorizerFunction.Arn
             Identity:
-              Headers: [Authorization]
+              Headers: [Authorization] # JWTはAuthorizationヘッダーで受け取る
             AuthorizerPayloadFormatVersion: "1.0"
             EnableSimpleResponses: false
 
   # ===== Lambda Authorizer =====
+  # JWTを検証してAllow/DenyのIAMポリシーを返す
   AuthorizerFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-Authorizer"
       CodeUri: functions/auth/
       Handler: authorizer.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
 
   # ===== Phase 2: 認証・ユーザー管理 API =====
 
+  # POST /login — ログイン（認証不要）
   LoginFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-Login"
       CodeUri: functions/auth/
       Handler: login.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -107,13 +137,17 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /login
             Method: POST
+            Auth:
+              Authorizer: NONE # 認証不要
 
+  # POST /user — ユーザー登録（認証不要）
   RegisterFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-Register"
       CodeUri: functions/auth/
       Handler: register.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -121,13 +155,17 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /user
             Method: POST
+            Auth:
+              Authorizer: NONE # 認証不要
 
+  # POST /user/me — 大会ID照会（認証必要）
   ConformFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-Conform"
       CodeUri: functions/auth/
       Handler: conform.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -138,12 +176,14 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # GET /user/me — プロフィール取得（認証必要）
   ProfileFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-Profile"
       CodeUri: functions/auth/
       Handler: profile.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -154,12 +194,14 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # POST /user/password — パスワード変更（認証必要）
   ChangePasswordFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-ChangePassword"
       CodeUri: functions/auth/
       Handler: changePassword.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -172,12 +214,14 @@ Resources:
 
   # ===== Phase 3: コア API =====
 
+  # GET /entries/init — 初期データ取得（認証必要）
   InitFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-Init"
       CodeUri: functions/entry/
       Handler: init.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -188,12 +232,14 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # POST /entries/auto — 自動入力送信（認証必要）
   AutoCreateFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-AutoCreate"
       CodeUri: functions/pitlog/
       Handler: autoCreate.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -204,12 +250,14 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # POST /entries/hand — 手入力送信（認証必要）
   HandCreateFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-HandCreate"
       CodeUri: functions/pitlog/
       Handler: handCreate.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -220,12 +268,14 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # GET /entries/update — 変更対象ピット記録取得（認証必要）
   UpdateGetFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-UpdateGet"
       CodeUri: functions/pitlog/
       Handler: updateGet.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -236,12 +286,14 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # PUT /entries/update — 記録変更/リタイア登録（認証必要）
   UpdatePutFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-UpdatePut"
       CodeUri: functions/pitlog/
       Handler: updatePut.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -252,12 +304,14 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # GET /entries/retire — リタイア情報取得（認証必要）
   RetireGetFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-RetireGet"
       CodeUri: functions/pitlog/
       Handler: retireGet.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -268,12 +322,14 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # POST /entries/retire — リタイア登録（認証必要）
   RetireCreateFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-RetireCreate"
       CodeUri: functions/pitlog/
       Handler: retireCreate.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -284,12 +340,14 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # GET /entries/show — 全ピット情報取得（認証必要）
   ShowAllFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-ShowAll"
       CodeUri: functions/pitlog/
       Handler: showAll.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
@@ -302,6 +360,7 @@ Resources:
 
   # ===== Phase 1: DynamoDB テーブル =====
 
+  # ユーザーテーブル: PK=username
   UsersTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -314,6 +373,7 @@ Resources:
         - AttributeName: username
           KeyType: HASH
 
+  # 組織テーブル: PK=circuit（サーキット番号）
   OrganizationsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -326,6 +386,7 @@ Resources:
         - AttributeName: circuit
           KeyType: HASH
 
+  # レーステーブル: PK=id
   RaceTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -338,6 +399,7 @@ Resources:
         - AttributeName: id
           KeyType: HASH
 
+  # エントリーテーブル: PK=race_id, SK=car_num
   EntryTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -354,6 +416,7 @@ Resources:
         - AttributeName: car_num
           KeyType: RANGE
 
+  # スタートドライバーテーブル: PK=race_id, SK=car_num
   StartDriverTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -370,7 +433,8 @@ Resources:
         - AttributeName: car_num
           KeyType: RANGE
 
-PitAssignmentTable:
+  # ピット担当割り当てテーブル: PK=race_id, SK=username
+  PitAssignmentTable:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Sub "OfficialSupportSystem-${Env}-PitAssignment"
@@ -397,6 +461,7 @@ PitAssignmentTable:
           Projection:
             ProjectionType: ALL
 
+  # ピットログテーブル: PK=race_id, SK=id(ULID) / GSI=car_num
   PitLogTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -422,6 +487,7 @@ PitAssignmentTable:
           Projection:
             ProjectionType: ALL
 
+  # ピットログ変更履歴テーブル: PK=pit_log_id, SK=id / GSI=modified_by
   PitLogHistoryTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -451,6 +517,7 @@ PitAssignmentTable:
           Projection:
             ProjectionType: ALL
 
+  # リタイアテーブル: PK=race_id, SK=car_num
   RetireTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -467,6 +534,7 @@ PitAssignmentTable:
         - AttributeName: car_num
           KeyType: RANGE
 
+  # 外回り記録テーブル: PK=race_id, SK=id / GSI=username
   OutpostLogTable:
     Type: AWS::DynamoDB::Table
     Properties:
