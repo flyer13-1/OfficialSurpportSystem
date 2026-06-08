@@ -433,7 +433,7 @@ Resources:
         - AttributeName: car_num
           KeyType: RANGE
 
-  # ピット担当割り当てテーブル: PK=race_id, SK=username
+  # ピット担当割り当てテーブル: PK=race_id, SK=username#maintenance_area（複合キー）
   PitAssignmentTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -442,6 +442,8 @@ Resources:
       AttributeDefinitions:
         - AttributeName: race_id
           AttributeType: S
+        - AttributeName: "username#maintenance_area"
+          AttributeType: S
         - AttributeName: username
           AttributeType: S
         - AttributeName: maintenance_area
@@ -449,7 +451,7 @@ Resources:
       KeySchema:
         - AttributeName: race_id
           KeyType: HASH
-        - AttributeName: username
+        - AttributeName: "username#maintenance_area"
           KeyType: RANGE
       GlobalSecondaryIndexes:
         - IndexName: UsernameIndex
