@@ -463,7 +463,8 @@ Resources:
           Projection:
             ProjectionType: ALL
 
-  # ピットログテーブル: PK=race_id, SK=id(ULID) / GSI=car_num
+  # ピットログテーブル: PK=race_id, SK=id(ULID)
+  # GSI なし（car_num での絞り込みは race_id パーティション内のフィルタで対応）
   PitLogTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -474,20 +475,11 @@ Resources:
           AttributeType: S
         - AttributeName: id
           AttributeType: S
-        - AttributeName: car_num
-          AttributeType: N
       KeySchema:
         - AttributeName: race_id
           KeyType: HASH
         - AttributeName: id
           KeyType: RANGE
-      GlobalSecondaryIndexes:
-        - IndexName: CarNumIndex
-          KeySchema:
-            - AttributeName: car_num
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
 
   # ピットログ変更履歴テーブル: PK=pit_log_id, SK=id / GSI=modified_by
   PitLogHistoryTable:
@@ -536,7 +528,7 @@ Resources:
         - AttributeName: car_num
           KeyType: RANGE
 
-  # 外回り記録テーブル: PK=race_id, SK=id / GSI=username
+  # 外回り記録テーブル: PK=race_id, SK=id(ULID) / GSI=username+created_at
   OutpostLogTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -549,6 +541,8 @@ Resources:
           AttributeType: S
         - AttributeName: username
           AttributeType: S
+        - AttributeName: created_at
+          AttributeType: S
       KeySchema:
         - AttributeName: race_id
           KeyType: HASH
@@ -559,6 +553,8 @@ Resources:
           KeySchema:
             - AttributeName: username
               KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
           Projection:
             ProjectionType: ALL
 
