@@ -10,6 +10,7 @@ Parameters:
     AllowedValues: [dev, stg, prod]
 
 # ===== Globals =====
+# PoliciesはGlobalsに書けないため削除。各FunctionはRoleで権限を付与する
 Globals:
   Function:
     Runtime: nodejs22.x
@@ -37,7 +38,8 @@ Globals:
         OUTPOST_LOG_TABLE: !Ref OutpostLogTable
 
 Resources:
-  # ===== IAM Role（全Lambda共通）=====
+  # ===== IAM Role =====
+  # 全Lambda共通で使うIAMロール。DynamoDB全操作とSSMパラメータ取得を許可
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -50,6 +52,7 @@ Resources:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
+        # CloudWatch Logsへの書き込みを許可（Lambda基本実行ロール）
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
         - PolicyName: DynamoDBCrudPolicy
@@ -66,7 +69,7 @@ Resources:
                   - dynamodb:Scan
                   - dynamodb:BatchWriteItem
                   - dynamodb:BatchGetItem
-                Resource: "*"
+                Resource: "*" # 全テーブルを許可（後で絞り込み可）
         - PolicyName: SSMParameterPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -78,6 +81,7 @@ Resources:
                 Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/OfficialSupportSystem/*"
 
   # ===== Lambda Layer（共通処理）=====
+  # dynamodb.js / generateId / responseヘルパーなどを格納
   CommonLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
@@ -92,21 +96,24 @@ Resources:
     Properties:
       Name: !Sub "OfficialSupportSystem-${Env}-Api"
       StageName: !Ref Env
+      # CORS設定: ブラウザからのクロスオリジンリクエストを許可
       Cors:
         AllowOrigin: "'*'"
         AllowHeaders: "'Content-Type,Authorization'"
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+      # 認証設定
       Auth:
-        DefaultAuthorizer: LambdaAuthorizer
+        DefaultAuthorizer: NONE
         Authorizers:
           LambdaAuthorizer:
             FunctionArn: !GetAtt AuthorizerFunction.Arn
             Identity:
-              Headers: [Authorization]
+              Headers: [Authorization] # JWTはAuthorizationヘッダーで受け取る
             AuthorizerPayloadFormatVersion: "1.0"
             EnableSimpleResponses: false
 
   # ===== Lambda Authorizer =====
+  # JWTを検証してAllow/DenyのIAMポリシーを返す
   AuthorizerFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -117,6 +124,7 @@ Resources:
 
   # ===== Phase 2: 認証・ユーザー管理 API =====
 
+  # POST /login — ログイン（認証不要）
   LoginFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -131,9 +139,8 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /login
             Method: POST
-            Auth:
-              Authorizer: NONE
 
+  # POST /user — ユーザー登録（認証不要）
   RegisterFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -148,9 +155,8 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /user
             Method: POST
-            Auth:
-              Authorizer: NONE
 
+  # POST /user/me — 大会ID照会（認証必要）
   ConformFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -168,6 +174,7 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # GET /user/me — プロフィール取得（認証必要）
   ProfileFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -185,6 +192,7 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # POST /user/password — パスワード変更（認証必要）
   ChangePasswordFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -204,6 +212,7 @@ Resources:
 
   # ===== Phase 3: コア API =====
 
+  # GET /entries/init — 初期データ取得（認証必要）
   InitFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -221,6 +230,7 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # POST /entries/auto — 自動入力送信（認証必要）
   AutoCreateFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -238,6 +248,7 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # POST /entries/hand — 手入力送信（認証必要）
   HandCreateFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -255,6 +266,7 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # GET /entries/update — 変更対象ピット記録取得（認証必要）
   UpdateGetFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -272,6 +284,7 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # PUT /entries/update — 記録変更/リタイア登録（認証必要）
   UpdatePutFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -289,6 +302,7 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # GET /entries/retire — リタイア情報取得（認証必要）
   RetireGetFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -306,6 +320,7 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # POST /entries/retire — リタイア登録（認証必要）
   RetireCreateFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -323,6 +338,7 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # GET /entries/show — 全ピット情報取得（認証必要）
   ShowAllFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -342,6 +358,7 @@ Resources:
 
   # ===== Phase 1: DynamoDB テーブル =====
 
+  # ユーザーテーブル: PK=username
   UsersTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -354,6 +371,7 @@ Resources:
         - AttributeName: username
           KeyType: HASH
 
+  # 組織テーブル: PK=circuit（サーキット番号）
   OrganizationsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -366,6 +384,7 @@ Resources:
         - AttributeName: circuit
           KeyType: HASH
 
+  # レーステーブル: PK=id
   RaceTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -378,6 +397,7 @@ Resources:
         - AttributeName: id
           KeyType: HASH
 
+  # エントリーテーブル: PK=race_id, SK=car_num
   EntryTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -394,6 +414,7 @@ Resources:
         - AttributeName: car_num
           KeyType: RANGE
 
+  # スタートドライバーテーブル: PK=race_id, SK=car_num
   StartDriverTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -410,13 +431,15 @@ Resources:
         - AttributeName: car_num
           KeyType: RANGE
 
-  PitAssignmentTable:
+PitAssignmentTable:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Sub "OfficialSupportSystem-${Env}-PitAssignment"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: race_id
+          AttributeType: S
+        - AttributeName: "username#maintenance_area"
           AttributeType: S
         - AttributeName: username
           AttributeType: S
@@ -425,7 +448,7 @@ Resources:
       KeySchema:
         - AttributeName: race_id
           KeyType: HASH
-        - AttributeName: username
+        - AttributeName: "username#maintenance_area"
           KeyType: RANGE
       GlobalSecondaryIndexes:
         - IndexName: UsernameIndex
@@ -437,6 +460,8 @@ Resources:
           Projection:
             ProjectionType: ALL
 
+  # ピットログテーブル: PK=race_id, SK=id(ULID)
+  # GSI なし（car_num での絞り込みは race_id パーティション内のフィルタで対応）
   PitLogTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -447,21 +472,13 @@ Resources:
           AttributeType: S
         - AttributeName: id
           AttributeType: S
-        - AttributeName: car_num
-          AttributeType: N
       KeySchema:
         - AttributeName: race_id
           KeyType: HASH
         - AttributeName: id
           KeyType: RANGE
-      GlobalSecondaryIndexes:
-        - IndexName: CarNumIndex
-          KeySchema:
-            - AttributeName: car_num
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
 
+  # ピットログ変更履歴テーブル: PK=pit_log_id, SK=id / GSI=modified_by
   PitLogHistoryTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -491,6 +508,7 @@ Resources:
           Projection:
             ProjectionType: ALL
 
+  # リタイアテーブル: PK=race_id, SK=car_num
   RetireTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -507,6 +525,7 @@ Resources:
         - AttributeName: car_num
           KeyType: RANGE
 
+  # 外回り記録テーブル: PK=race_id, SK=id(ULID) / GSI=username+created_at
   OutpostLogTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -519,6 +538,8 @@ Resources:
           AttributeType: S
         - AttributeName: username
           AttributeType: S
+        - AttributeName: created_at
+          AttributeType: S
       KeySchema:
         - AttributeName: race_id
           KeyType: HASH
@@ -529,6 +550,8 @@ Resources:
           KeySchema:
             - AttributeName: username
               KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
           Projection:
             ProjectionType: ALL
 
