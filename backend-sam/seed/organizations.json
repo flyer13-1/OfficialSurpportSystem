@@ -1,0 +1,11 @@
+{
+  "OfficialSupportSystem-dev-Organizations": [
+    { "PutRequest": { "Item": { "circuit": { "N": "1" }, "name": { "S": "富士SpeedWay" } } } },
+    { "PutRequest": { "Item": { "circuit": { "N": "2" }, "name": { "S": "ツインリンクもてぎ" } } } },
+    { "PutRequest": { "Item": { "circuit": { "N": "3" }, "name": { "S": "スポーツランド菅生" } } } },
+    { "PutRequest": { "Item": { "circuit": { "N": "4" }, "name": { "S": "鈴鹿" } } } },
+    { "PutRequest": { "Item": { "circuit": { "N": "5" }, "name": { "S": "岡山国際" } } } },
+    { "PutRequest": { "Item": { "circuit": { "N": "6" }, "name": { "S": "その他" } } } },
+    { "PutRequest": { "Item": { "circuit": { "N": "7" }, "name": { "S": "無所属" } } } }
+  ]
+}

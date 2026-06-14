@@ -1,0 +1,13 @@
+{
+  "OfficialSupportSystem-dev-Race": [
+    {
+      "PutRequest": {
+        "Item": {
+          "id":       { "S": "2026test_race" },
+          "title":    { "S": "2026 テストレース" },
+          "today_id": { "S": "TESTRACE2026061500" }
+        }
+      }
+    }
+  ]
+}
