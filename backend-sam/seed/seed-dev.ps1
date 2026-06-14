@@ -11,6 +11,8 @@
 
 $ErrorActionPreference = "Stop"
 $region = "ap-northeast-1"
+# AWS CLI が file:// の JSON を UTF-8 として読むよう指定（既定の cp932 だと日本語で失敗する）
+$env:AWS_CLI_FILE_ENCODING = "utf-8"
 Set-Location $PSScriptRoot
 
 Write-Host "== organizations を投入 =="
