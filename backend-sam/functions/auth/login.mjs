@@ -1,7 +1,7 @@
 import { GetCommand } from "@aws-sdk/lib-dynamodb";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { docClient, Tables, response } from "/opt/nodejs/dynamodb.js";
+import { docClient, Tables, response, getJwtSecret } from "/opt/nodejs/dynamodb.js";
 
 /**
  * POST /login — ログイン
@@ -47,7 +47,7 @@ export const handler = async (event) => {
         username:        result.Item.username,
         organization_id: result.Item.organization_id,
       },
-      process.env.JWT_SECRET,
+      await getJwtSecret(),
       { expiresIn: "24h" }
     );
 

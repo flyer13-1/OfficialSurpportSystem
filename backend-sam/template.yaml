@@ -21,10 +21,10 @@ Globals:
       - !Ref CommonLayer
     Environment:
       Variables:
-        ENV: !Ref Env
-
-        # 一旦固定値
-        JWT_SECRET: "test-secret"
+        # JWT 署名/検証の秘密鍵は SSM Parameter Store(SecureString) から取得する。
+        # テンプレートにはパラメータ名のみを置き、秘密値そのものは置かない。
+        # 事前に aws ssm put-parameter で SecureString を作成しておくこと。
+        JWT_SECRET_PARAM: !Sub "/OfficialSupportSystem/${Env}/jwt-secret"
 
         USERS_TABLE: !Ref UsersTable
         ORGANIZATIONS_TABLE: !Ref OrganizationsTable
@@ -79,6 +79,14 @@ Resources:
                   - ssm:GetParameter
                   - ssm:GetParameters
                 Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/OfficialSupportSystem/*"
+              # SecureString(JWT秘密鍵) を WithDecryption で取得するための復号権限。
+              # SSM 経由の呼び出しに限定（kms:ViaService）。
+              - Effect: Allow
+                Action: kms:Decrypt
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
 
   # ===== Lambda Layer（共通処理）=====
   # dynamodb.js / generateId / responseヘルパーなどを格納
@@ -102,15 +110,15 @@ Resources:
         AllowHeaders: "'Content-Type,Authorization'"
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
       # 認証設定
+      # DefaultAuthorizer は指定しない＝既定は認証なし。
+      # 認証が必要なメソッドだけが個別に Auth: Authorizer: LambdaAuthorizer を指定する。
       Auth:
-        DefaultAuthorizer: NONE
         Authorizers:
           LambdaAuthorizer:
             FunctionArn: !GetAtt AuthorizerFunction.Arn
+            # TOKEN authorizer: Authorization ヘッダーの Bearer トークンを検証する
             Identity:
-              Headers: [Authorization] # JWTはAuthorizationヘッダーで受け取る
-            AuthorizerPayloadFormatVersion: "1.0"
-            EnableSimpleResponses: false
+              Header: Authorization
 
   # ===== Lambda Authorizer =====
   # JWTを検証してAllow/DenyのIAMポリシーを返す
@@ -192,7 +200,9 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
-  # POST /user/password — パスワード変更（認証必要）
+  # POST /user/password — パスワード変更（認証不要）
+  # forgetPass（パスワード再設定）はログイン前にトークン無しで呼ぶため認証を付けない。
+  # 現在パスワードの bcrypt 照合が実質の認証となる。
   ChangePasswordFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -207,8 +217,6 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /user/password
             Method: POST
-            Auth:
-              Authorizer: LambdaAuthorizer
 
   # ===== Phase 3: コア API =====
 
@@ -431,7 +439,8 @@ Resources:
         - AttributeName: car_num
           KeyType: RANGE
 
-PitAssignmentTable:
+  # ピット担当テーブル: PK=race_id, SK=username#maintenance_area / GSI=UsernameIndex
+  PitAssignmentTable:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Sub "OfficialSupportSystem-${Env}-PitAssignment"

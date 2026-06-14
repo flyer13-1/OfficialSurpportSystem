@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import { getJwtSecret } from "/opt/nodejs/dynamodb.js";
 
 /**
  * Lambda Authorizer
@@ -17,9 +18,12 @@ export const handler = async (event) => {
       return generatePolicy("anonymous", "Deny", event.methodArn);
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, await getJwtSecret());
 
-    const policy = generatePolicy(decoded.username, "Allow", event.methodArn);
+    // 許可リソースは「API+ステージ全体」のワイルドカードにする。
+    // メソッド固有の methodArn を返すと、Authorizer キャッシュ(既定300秒)が
+    // 同一トークンの別メソッドに再利用されて 403 になるため。
+    const policy = generatePolicy(decoded.username, "Allow", wildcardResource(event.methodArn));
     // 後続 Lambda で使える context
     policy.context = {
       username:        decoded.username,
@@ -31,6 +35,13 @@ export const handler = async (event) => {
     return generatePolicy("anonymous", "Deny", event.methodArn);
   }
 };
+
+// methodArn 例: arn:aws:execute-api:region:acct:apiId/stage/METHOD/resource/path
+// → arn:aws:execute-api:region:acct:apiId/stage/* （全メソッド・全パス）に変換
+function wildcardResource(methodArn) {
+  const parts = methodArn.split("/");
+  return `${parts[0]}/${parts[1]}/*`; // {…:apiId}/{stage}/*
+}
 
 function generatePolicy(principalId, effect, resource) {
   return {

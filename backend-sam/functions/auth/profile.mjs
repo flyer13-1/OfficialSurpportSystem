@@ -1,5 +1,6 @@
 import { GetCommand } from "@aws-sdk/lib-dynamodb";
-import { docClient, Tables, response } from "/opt/nodejs/dynamodb.js";
+import jwt from "jsonwebtoken";
+import { docClient, Tables, response, getJwtSecret } from "/opt/nodejs/dynamodb.js";
 
 /**
  * GET /user/me — プロフィール取得
@@ -7,8 +8,24 @@ import { docClient, Tables, response } from "/opt/nodejs/dynamodb.js";
  */
 export const handler = async (event) => {
   try {
-    // ── JWT から username を取得（Authorizer が context にセット）──
-    const username = event.requestContext?.authorizer?.username;
+    // ── username を取得 ──
+    // 通常は Authorizer が requestContext.authorizer にセットする。
+    // Authorizer が未アタッチ等で context が無い場合は、Authorization
+    // ヘッダーの JWT を自前で検証して username を取り出す（フォールバック）。
+    let username = event.requestContext?.authorizer?.username;
+    if (!username) {
+      const authHeader =
+        event.headers?.Authorization || event.headers?.authorization || "";
+      const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+      if (token) {
+        try {
+          const decoded = jwt.verify(token, await getJwtSecret());
+          username = decoded.username;
+        } catch {
+          // 署名不正・期限切れなどは未認証として扱う
+        }
+      }
+    }
     if (!username) {
       return response(401, { msg: "認証が必要です", username: "", circuit: "" });
     }
