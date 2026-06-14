@@ -15,11 +15,11 @@ export const handler = async (event) => {
     if (!username || !password || !newpassword) {
       return response(400, { msg: "担当者名・現在のパスワード・新しいパスワードは必須です" });
     }
-    if (!/^[ぁ-んァ-ヶ一-龯]{4,20}$/.test(username)) {
+    if (!/^[ぁ-んァ-ヶー一-鿿㐀-䶿]{4,20}$/.test(username)) {
       return response(400, { msg: "担当者名の形式が不正です" });
     }
-    if (!/^[A-Za-z0-9]{6,20}$/.test(newpassword)) {
-      return response(400, { msg: "新しいパスワードは半角英数字で6〜20文字です" });
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z0-9]{6,20}$/.test(newpassword)) {
+      return response(400, { msg: "新しいパスワードは大文字・小文字・数字を含む半角英数字で6〜20文字です" });
     }
     if (password === newpassword) {
       return response(400, { msg: "新しいパスワードは現在のパスワードと異なる必要があります" });

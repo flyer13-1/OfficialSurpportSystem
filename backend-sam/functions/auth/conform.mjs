@@ -15,8 +15,8 @@ export const handler = async (event) => {
     if (!todayId) {
       return response(400, { msg: "大会IDは必須です" });
     }
-    if (!/^[A-Za-z0-9]{15,}$/.test(todayId)) {
-      return response(400, { msg: "大会IDは半角英数字15文字以上です" });
+    if (!/^[A-Za-z0-9\-_!]{15,}$/.test(todayId)) {
+      return response(400, { msg: "大会IDは半角英数字と記号(-_!)で15文字以上です" });
     }
 
     // ── RaceTable を Scan して todayId と照合 ──

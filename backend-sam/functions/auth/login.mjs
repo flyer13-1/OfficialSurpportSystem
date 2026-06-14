@@ -16,11 +16,11 @@ export const handler = async (event) => {
     if (!username || !password) {
       return response(400, { msg: "担当者名とパスワードは必須です", token: "" });
     }
-    if (!/^[ぁ-んァ-ヶ一-龯]{4,20}$/.test(username)) {
+    if (!/^[ぁ-んァ-ヶー一-鿿㐀-䶿]{4,20}$/.test(username)) {
       return response(400, { msg: "担当者名はひらがな・カタカナ・漢字で4〜20文字です", token: "" });
     }
-    if (!/^[A-Za-z0-9]{6,20}$/.test(password)) {
-      return response(400, { msg: "パスワードは半角英数字で6〜20文字です", token: "" });
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z0-9]{6,20}$/.test(password)) {
+      return response(400, { msg: "パスワードは大文字・小文字・数字を含む半角英数字で6〜20文字です", token: "" });
     }
 
     // ── UsersTable からユーザー取得 ──
