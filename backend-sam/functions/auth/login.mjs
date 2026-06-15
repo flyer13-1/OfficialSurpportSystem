@@ -16,7 +16,7 @@ export const handler = async (event) => {
     if (!username || !password) {
       return response(400, { msg: "担当者名とパスワードは必須です", token: "" });
     }
-    if (!/^[ぁ-んァ-ヶー一-鿿㐀-䶿]{4,20}$/.test(username)) {
+    if (!/^[ぁ-んァ-ヶ一-鿿㐀-䶿]{4,20}$/.test(username)) {
       return response(400, { msg: "担当者名はひらがな・カタカナ・漢字で4〜20文字です", token: "" });
     }
     if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z0-9]{6,20}$/.test(password)) {

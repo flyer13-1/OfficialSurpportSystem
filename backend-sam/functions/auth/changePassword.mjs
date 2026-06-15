@@ -15,7 +15,7 @@ export const handler = async (event) => {
     if (!username || !password || !newpassword) {
       return response(400, { msg: "担当者名・現在のパスワード・新しいパスワードは必須です" });
     }
-    if (!/^[ぁ-んァ-ヶー一-鿿㐀-䶿]{4,20}$/.test(username)) {
+    if (!/^[ぁ-んァ-ヶ一-鿿㐀-䶿]{4,20}$/.test(username)) {
       return response(400, { msg: "担当者名の形式が不正です" });
     }
     if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z0-9]{6,20}$/.test(newpassword)) {
