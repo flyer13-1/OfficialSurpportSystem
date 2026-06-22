@@ -364,6 +364,81 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # ===== 管理者画面（一次情報CRUD）: race =====
+  # IF設計書: doc/IF/admin/race.md ／ 認可は requireAdmin（layer admin.js）で admin 限定
+
+  # GET /race — レース一覧（認証必要・admin）
+  RaceListFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-RaceList"
+      CodeUri: functions/race/
+      Handler: list.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /race
+            Method: GET
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  # POST /race — レース登録（認証必要・admin）
+  RaceCreateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-RaceCreate"
+      CodeUri: functions/race/
+      Handler: create.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /race
+            Method: POST
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  # PUT /race — レース変更（認証必要・admin）
+  RaceUpdateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-RaceUpdate"
+      CodeUri: functions/race/
+      Handler: update.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /race
+            Method: PUT
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  # DELETE /race/{id} — レース削除（認証必要・admin）
+  RaceDeleteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-RaceDelete"
+      CodeUri: functions/race/
+      Handler: delete.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /race/{id}
+            Method: DELETE
+            Auth:
+              Authorizer: LambdaAuthorizer
+
   # ===== Phase 1: DynamoDB テーブル =====
 
   # ユーザーテーブル: PK=username

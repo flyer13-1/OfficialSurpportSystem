@@ -35,6 +35,10 @@ import { handler as updatePutHandler }      from "../functions/pitlog/updatePut.
 import { handler as retireGetHandler }      from "../functions/pitlog/retireGet.mjs";
 import { handler as retireCreateHandler }   from "../functions/pitlog/retireCreate.mjs";
 import { handler as showAllHandler }        from "../functions/pitlog/showAll.mjs";
+import { handler as raceListHandler }        from "../functions/race/list.mjs";
+import { handler as raceCreateHandler }      from "../functions/race/create.mjs";
+import { handler as raceUpdateHandler }      from "../functions/race/update.mjs";
+import { handler as raceDeleteHandler }      from "../functions/race/delete.mjs";
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -55,6 +59,7 @@ function makeEvent(req, authorizer = null) {
   return {
     httpMethod:           req.method,
     path:                 req.path,
+    pathParameters:       req.params && Object.keys(req.params).length ? req.params : null,
     queryStringParameters: req.query || null,
     headers:              req.headers,
     body:                 req.body ? JSON.stringify(req.body) : null,
@@ -119,6 +124,12 @@ app.get ("/entries/retire", auth, (req, res) => handle(retireGetHandler,       r
 app.post("/entries/retire", auth, (req, res) => handle(retireCreateHandler,    req, res, true));
 app.get ("/entries/show",   auth, (req, res) => handle(showAllHandler,         req, res, true));
 
+// ── 管理者画面（一次情報CRUD）──
+app.get   ("/race",      auth, (req, res) => handle(raceListHandler,   req, res, true));
+app.post  ("/race",      auth, (req, res) => handle(raceCreateHandler, req, res, true));
+app.put   ("/race",      auth, (req, res) => handle(raceUpdateHandler, req, res, true));
+app.delete("/race/:id",  auth, (req, res) => handle(raceDeleteHandler, req, res, true));
+
 // ── 起動 ──
 app.listen(PORT, () => {
   console.log(`\n✅ ローカルサーバー起動: http://localhost:${PORT}`);
@@ -136,5 +147,9 @@ app.listen(PORT, () => {
   console.log("  GET  /entries/retire    JWT必要 ?race_id=...");
   console.log("  POST /entries/retire    JWT必要 ?race_id=...");
   console.log("  GET  /entries/show      JWT必要 ?race_id=...");
+  console.log("  GET  /race              JWT必要 admin（レース一覧）");
+  console.log("  POST /race              JWT必要 admin（レース登録）");
+  console.log("  PUT  /race              JWT必要 admin（レース変更）");
+  console.log("  DELETE /race/:id        JWT必要 admin（レース削除）");
   console.log("──────────────────────────────────\n");
 });
