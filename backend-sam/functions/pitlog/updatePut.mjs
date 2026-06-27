@@ -53,31 +53,77 @@ export const handler = async (event) => {
 
       const targetLog = pitResult.Items[0];
 
-      // バリデーション
-      if (inTime && outTime && new Date(outTime) < new Date(inTime)) {
+      // 送信されたフィールドだけ動的に UpdateExpression を組み立てる
+      const exprParts = ["updated_at = :now"];
+      const exprValues = { ":now": new Date().toISOString() };
+      const changedNew = {};
+      const changedOld = {};
+
+      if (inTime !== undefined) {
+        exprParts.push("in_time = :in_time");
+        exprValues[":in_time"] = inTime || null;
+        changedOld.in_time = targetLog.in_time;
+        changedNew.inTime  = inTime || null;
+      }
+      if (outTime !== undefined) {
+        exprParts.push("out_time = :out_time");
+        exprValues[":out_time"] = outTime || null;
+        changedOld.out_time = targetLog.out_time;
+        changedNew.outTime  = outTime || null;
+      }
+      if (garageInTime !== undefined) {
+        exprParts.push("garage_in_time = :garage_in_time");
+        exprValues[":garage_in_time"] = garageInTime || null;
+        changedOld.garage_in_time = targetLog.garage_in_time;
+        changedNew.garageInTime   = garageInTime || null;
+      }
+      if (outDriver !== undefined) {
+        exprParts.push("driver_out = :driver_out");
+        exprValues[":driver_out"] = outDriver || null;
+        changedOld.driver_out = targetLog.driver_out;
+        changedNew.outDriver  = outDriver || null;
+      }
+      if (tire !== undefined) {
+        exprParts.push("tire = :tire");
+        exprValues[":tire"] = tire === true;
+        changedOld.tire = targetLog.tire;
+        changedNew.tire = tire === true;
+      }
+      if (oil !== undefined) {
+        exprParts.push("oil = :oil");
+        exprValues[":oil"] = oil === true;
+        changedOld.oil = targetLog.oil;
+        changedNew.oil = oil === true;
+      }
+      if (note !== undefined) {
+        exprParts.push("note = :note");
+        exprValues[":note"] = note || "";
+        changedOld.note = targetLog.note;
+        changedNew.note = note || "";
+      }
+
+      // updated_at だけなら変更フィールドなし
+      if (exprParts.length === 1) {
+        return response(400, { msg: "変更フィールドがありません" });
+      }
+
+      // 時刻順バリデーション（両方送られた場合のみ）
+      const effectiveIn  = inTime  !== undefined ? inTime  : targetLog.in_time;
+      const effectiveOut = outTime !== undefined ? outTime : targetLog.out_time;
+      if (effectiveIn && effectiveOut && new Date(effectiveOut) < new Date(effectiveIn)) {
         return response(400, { msg: "出時刻は入時刻以降にしてください" });
       }
 
-      // UpdateItem
       await docClient.send(
         new UpdateCommand({
-          TableName:        Tables.pitLog,
-          Key:              { race_id, id: targetLog.id },
-          UpdateExpression: "SET in_time = :in_time, out_time = :out_time, garage_in_time = :garage_in_time, driver_out = :driver_out, tire = :tire, oil = :oil, note = :note, updated_at = :now",
-          ExpressionAttributeValues: {
-            ":in_time":        inTime        || null,
-            ":out_time":       outTime       || null,
-            ":garage_in_time": garageInTime  || null,
-            ":driver_out":     outDriver     || null,
-            ":tire":           tire === true,
-            ":oil":            oil  === true,
-            ":note":           note || "",
-            ":now":            new Date().toISOString(),
-          },
+          TableName:                 Tables.pitLog,
+          Key:                       { race_id, id: targetLog.id },
+          UpdateExpression:          `SET ${exprParts.join(", ")}`,
+          ExpressionAttributeValues: exprValues,
         })
       );
 
-      // 変更履歴を PitLogHistoryTable に記録
+      // 変更履歴（変更したフィールドのみ記録）
       await docClient.send(
         new PutCommand({
           TableName: Tables.pitLogHistory,
@@ -87,17 +133,9 @@ export const handler = async (event) => {
             action_type: "update",
             modified_by: username,
             modified_at: new Date().toISOString(),
-            field_name:  "multiple",
-            old_value:   JSON.stringify({
-              in_time:        targetLog.in_time,
-              out_time:       targetLog.out_time,
-              garage_in_time: targetLog.garage_in_time,
-              driver_out:     targetLog.driver_out,
-              tire:           targetLog.tire,
-              oil:            targetLog.oil,
-              note:           targetLog.note,
-            }),
-            new_value: JSON.stringify({ inTime, outTime, garageInTime, outDriver, tire, oil, note }),
+            field_name:  Object.keys(changedNew).join(","),
+            old_value:   JSON.stringify(changedOld),
+            new_value:   JSON.stringify(changedNew),
           },
         })
       );

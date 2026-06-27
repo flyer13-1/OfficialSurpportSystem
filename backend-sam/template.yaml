@@ -220,6 +220,42 @@ Resources:
 
   # ===== Phase 3: コア API =====
 
+  # POST /entry/bulk — エントリー一括登録（認証必要）
+  BulkEntryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-BulkEntry"
+      CodeUri: functions/entry/
+      Handler: bulkEntry.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /entry/bulk
+            Method: POST
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  # POST /entry/start-driver/bulk — スタートドライバー一括登録（認証必要）
+  BulkStartDriverFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-BulkStartDriver"
+      CodeUri: functions/entry/
+      Handler: bulkStartDriver.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /entry/start-driver/bulk
+            Method: POST
+            Auth:
+              Authorizer: LambdaAuthorizer
+
   # GET /entries/init — 初期データ取得（認証必要）
   InitFunction:
     Type: AWS::Serverless::Function
