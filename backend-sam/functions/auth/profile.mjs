@@ -46,6 +46,7 @@ export const handler = async (event) => {
       msg:      "",
       username: userResult.Item.username,
       circuit:  String(userResult.Item.organization_id),
+      isAdmin:  userResult.Item.isAdmin ?? false,
     });
   } catch (err) {
     console.error("profile error:", err);
