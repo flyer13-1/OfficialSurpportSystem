@@ -31,14 +31,19 @@ export const handler = async (event) => {
     const payload = await verifier.verify(token);
     // ID トークンの担当者名は cognito:username クレームに入る
     const username = payload["cognito:username"] || payload.sub;
+    // Cognito のグループは cognito:groups クレームに配列で入る（未所属なら undefined）。
+    // leader グループ所属を管理者とみなす。
+    const groups = payload["cognito:groups"] || [];
+    const isAdmin = groups.includes("leader");
 
     // 許可リソースは「API+ステージ全体」のワイルドカードにする。
     // メソッド固有の methodArn を返すと、Authorizer キャッシュ(既定300秒)が
     // 同一トークンの別メソッドに再利用されて 403 になるため。
     const policy = generatePolicy(username, "Allow", wildcardResource(event.methodArn));
-    // 後続 Lambda で使える context（所属サーキット・管理者フラグは
-    // UsersTable を参照する側で取得する。profile.mjs / admin.js 参照）
-    policy.context = { username };
+    // 後続 Lambda で使える context。値は文字列/数値/真偽値のみ（配列不可）で、
+    // 真偽値は後続には "true"/"false" の文字列で届く点に注意。
+    // 所属サーキットは UsersTable を参照する側で取得する（profile.mjs / admin.js 参照）。
+    policy.context = { username, isAdmin };
     return policy;
   } catch (err) {
     console.error("Authorizer error:", err.message);

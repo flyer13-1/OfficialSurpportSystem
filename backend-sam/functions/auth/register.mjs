@@ -15,11 +15,19 @@ export const handler = async (event) => {
     const { username, sub, circuit } = body;
 
     // ── バリデーション ──
-    if (!username || !sub || circuit === undefined || circuit === null || circuit === "") {
+    if (
+      !username ||
+      !sub ||
+      circuit === undefined ||
+      circuit === null ||
+      circuit === ""
+    ) {
       return response(400, { msg: "担当者名・sub・サーキットは必須です" });
     }
     if (!/^[ぁ-んァ-ヶ一-鿿㐀-䶿]{4,20}$/.test(username)) {
-      return response(400, { msg: "担当者名はひらがな・カタカナ・漢字で4〜20文字です" });
+      return response(400, {
+        msg: "担当者名はひらがな・カタカナ・漢字で4〜20文字です",
+      });
     }
     const circuitNum = Number(circuit);
     if (!Number.isInteger(circuitNum) || circuitNum < 1 || circuitNum > 7) {
@@ -31,7 +39,7 @@ export const handler = async (event) => {
       new GetCommand({
         TableName: Tables.organizations,
         Key: { circuit: circuitNum },
-      })
+      }),
     );
     if (!orgResult.Item) {
       return response(400, { msg: "指定されたサーキットが存在しません" });
@@ -48,12 +56,10 @@ export const handler = async (event) => {
             username,
             sub, // Cognito の userSub（ユーザー識別子）
             organization_id: circuitNum,
-            admin:      false, // 既定は非管理者。管理者への昇格は別途手動運用
             created_at: now,
-            updated_at: now,
           },
           ConditionExpression: "attribute_not_exists(username)",
-        })
+        }),
       );
     } catch (err) {
       if (err.name === "ConditionalCheckFailedException") {

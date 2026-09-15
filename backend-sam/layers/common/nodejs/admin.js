@@ -11,7 +11,7 @@ export function resolveUsername(event) {
 }
 
 /**
- * 管理者APIの認可。ログイン認証（Cognito）を通過した上で admin=true を確認する。
+ * 管理者APIの認可。ログイン認証（Cognito）を通過した上で leader グループ所属を確認する。
  * 所属サーキット(organization_id)も併せて返す（管理者APIでのスコープ絞り込み用）。
  * 成功時: { username, organizationId }
  * 失敗時: { error: <response object> }（401 未認証 / 403 admin でない）
@@ -24,13 +24,21 @@ export async function requireAdmin(event) {
     return { error: response(401, { msg: "認証が必要です" }) };
   }
 
+  // 管理者判定は Cognito の leader グループで行う（Authorizer が
+  // cognito:groups から算出して context.isAdmin にセット。文字列で届く）。
+  const auth = event.requestContext?.authorizer;
+  const isAdmin = auth?.isAdmin === "true" || auth?.isAdmin === true;
+  if (!isAdmin) {
+    console.warn(`[admin] forbidden access attempt by username=${username}`);
+    return { error: response(403, { msg: "管理者権限がありません" }) };
+  }
+
+  // 所属サーキット(organization_id)は引き続き UsersTable から取得する。
   const userResult = await docClient.send(
     new GetCommand({ TableName: Tables.users, Key: { username } })
   );
-
-  if (!userResult.Item || userResult.Item.admin !== true) {
-    console.warn(`[admin] forbidden access attempt by username=${username}`);
-    return { error: response(403, { msg: "管理者権限がありません" }) };
+  if (!userResult.Item) {
+    return { error: response(403, { msg: "ユーザーが見つかりません" }) };
   }
 
   return { username, organizationId: userResult.Item.organization_id };

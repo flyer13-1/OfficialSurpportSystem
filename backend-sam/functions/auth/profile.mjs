@@ -11,29 +11,43 @@ export const handler = async (event) => {
     // requestContext.authorizer にセットする（authorizer.mjs 参照）。
     const username = event.requestContext?.authorizer?.username;
     if (!username) {
-      return response(401, { msg: "認証が必要です", username: "", circuit: "" });
+      return response(401, {
+        msg: "認証が必要です",
+        username: "",
+        circuit: "",
+      });
     }
 
     // ── UsersTable から GetItem ──
     const userResult = await docClient.send(
       new GetCommand({
         TableName: Tables.users,
-        Key:       { username },
-      })
+        Key: { username },
+      }),
     );
 
     if (!userResult.Item) {
-      return response(400, { msg: "ユーザーが見つかりません", username: "", circuit: "" });
+      return response(400, {
+        msg: "ユーザーが見つかりません",
+        username: "",
+        circuit: "",
+      });
     }
 
     return response(200, {
-      msg:      "",
+      msg: "",
       username: userResult.Item.username,
-      circuit:  String(userResult.Item.organization_id),
-      isAdmin:  userResult.Item.admin === true,
+      circuit: String(userResult.Item.organization_id),
+      // 管理者判定は Cognito の leader グループ由来（Authorizer が context に
+      // isAdmin をセット。文字列で届く）。conform.js / userMenu2.md が参照。
+      isAdmin: event.requestContext?.authorizer?.isAdmin === "true",
     });
   } catch (err) {
     console.error("profile error:", err);
-    return response(500, { msg: "サーバーエラーが発生しました", username: "", circuit: "" });
+    return response(500, {
+      msg: "サーバーエラーが発生しました",
+      username: "",
+      circuit: "",
+    });
   }
 };
