@@ -1,7 +1,6 @@
 {
   "permissions": {
-    "allow": [
-      "Bash(git commit -m ' *)"
-    ]
-  }
+    "allow": ["Bash(git commit -m ' *)"]
+  },
+  "model": "claude-opus-4-8"
 }

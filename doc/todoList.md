@@ -9,8 +9,8 @@
 
 設計書に定義はあるが、コードが旧仕様のままの箇所。
 
-- [ ] **C-1 register.mjs に `admin: false` を追加**
-  - `functions/auth/register.mjs` の PutItem に `admin: false` が無い。
+- [x] **C-1 register.mjs に `admin: false` を追加**（2026-09-15 対応済み。Cognito移行に伴う
+  register.mjs 書き換えの一環で追加）
   - 設計 §2 users「register 時に必ず false を書く」。outpost の認可で使用。
 
 - [ ] **C-2 pit_log_history を「項目単位」記録に変更**（`functions/pitlog/updatePut.mjs`）

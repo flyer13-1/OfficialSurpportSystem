@@ -21,10 +21,10 @@ Globals:
       - !Ref CommonLayer
     Environment:
       Variables:
-        # JWT 署名/検証の秘密鍵は SSM Parameter Store(SecureString) から取得する。
-        # テンプレートにはパラメータ名のみを置き、秘密値そのものは置かない。
-        # 事前に aws ssm put-parameter で SecureString を作成しておくこと。
-        JWT_SECRET_PARAM: !Sub "/OfficialSupportSystem/${Env}/jwt-secret"
+        # ログイン認証は Cognito User Pool が担う（Lambda Authorizer が
+        # ID トークンを JWKS で検証する。authorizer.mjs 参照）。
+        COGNITO_USER_POOL_ID: "us-east-1_P6B4NaQPe"
+        COGNITO_CLIENT_ID: "7i8g9mqjr6a932isnp7nkl1csj"
 
         USERS_TABLE: !Ref UsersTable
         ORGANIZATIONS_TABLE: !Ref OrganizationsTable
@@ -70,23 +70,6 @@ Resources:
                   - dynamodb:BatchWriteItem
                   - dynamodb:BatchGetItem
                 Resource: "*" # 全テーブルを許可（後で絞り込み可）
-        - PolicyName: SSMParameterPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ssm:GetParameter
-                  - ssm:GetParameters
-                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/OfficialSupportSystem/*"
-              # SecureString(JWT秘密鍵) を WithDecryption で取得するための復号権限。
-              # SSM 経由の呼び出しに限定（kms:ViaService）。
-              - Effect: Allow
-                Action: kms:Decrypt
-                Resource: "*"
-                Condition:
-                  StringEquals:
-                    kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
 
   # ===== Lambda Layer（共通処理）=====
   # dynamodb.js / generateId / responseヘルパーなどを格納
@@ -131,24 +114,11 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
 
   # ===== Phase 2: 認証・ユーザー管理 API =====
+  # ログイン（POST /login）は廃止。フロントは Cognito User Pool に直接認証する
+  # （common.js の cognitoPool → authenticateUser）。Lambda Authorizer が
+  # Cognito の ID トークンを検証する（authorizer.mjs）。
 
-  # POST /login — ログイン（認証不要）
-  LoginFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub "OfficialSupportSystem-${Env}-Login"
-      CodeUri: functions/auth/
-      Handler: login.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Events:
-        Api:
-          Type: Api
-          Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /login
-            Method: POST
-
-  # POST /user — ユーザー登録（認証不要）
+  # POST /user — ユーザー登録（認証不要・Cognito signUp/confirm後に呼ぶ）
   RegisterFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -200,23 +170,8 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
-  # POST /user/password — パスワード変更（認証不要）
-  # forgetPass（パスワード再設定）はログイン前にトークン無しで呼ぶため認証を付けない。
-  # 現在パスワードの bcrypt 照合が実質の認証となる。
-  ChangePasswordFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub "OfficialSupportSystem-${Env}-ChangePassword"
-      CodeUri: functions/auth/
-      Handler: changePassword.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Events:
-        Api:
-          Type: Api
-          Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /user/password
-            Method: POST
+  # POST /user/password は廃止。パスワード再設定は Cognito の
+  # forgotPassword / confirmPassword をフロントから直接呼ぶ（forgetPass.js）。
 
   # ===== Phase 3: コア API =====
 
@@ -397,6 +352,81 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /entries/show
             Method: GET
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  # ===== 管理者画面（一次情報CRUD）: race =====
+  # IF設計書: doc/IF/admin/race.md ／ 認可は requireAdmin（layer admin.js）で admin 限定
+
+  # GET /race — レース一覧（認証必要・admin）
+  RaceListFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-RaceList"
+      CodeUri: functions/race/
+      Handler: list.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /race
+            Method: GET
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  # POST /race — レース登録（認証必要・admin）
+  RaceCreateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-RaceCreate"
+      CodeUri: functions/race/
+      Handler: create.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /race
+            Method: POST
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  # PUT /race — レース変更（認証必要・admin）
+  RaceUpdateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-RaceUpdate"
+      CodeUri: functions/race/
+      Handler: update.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /race
+            Method: PUT
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  # DELETE /race/{id} — レース削除（認証必要・admin）
+  RaceDeleteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-RaceDelete"
+      CodeUri: functions/race/
+      Handler: delete.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /race/{id}
+            Method: DELETE
             Auth:
               Authorizer: LambdaAuthorizer
 

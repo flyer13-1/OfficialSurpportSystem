@@ -55,21 +55,19 @@
 
 ## Phase 2: 認証・ユーザー管理 API
 
-> 認証不要: `/login`, `/user`　／　認証必要: それ以外
+> 認証不要: `/user`　／　認証必要: それ以外
+>
+> **2026-09 Cognito移行**: ログイン認証は Cognito User Pool に一本化。
+> `POST /login`・`POST /user/password` の自前実装は廃止した（下記参照）。
 
 ---
 
-### POST `/login` — ログイン
+### （廃止）POST `/login` — ログイン
 
 > IF設計書: [index.md](IF/index.md)
 
-- [ ] `functions/auth/login.mjs`
-  - バリデーション（username / password）
-  - UsersTable から `GetItem`（username で検索）
-  - `bcryptjs` でパスワード照合
-  - `jsonwebtoken` で JWT 発行（ペイロード: username, organization_id）
-- [ ] `template.yaml` に `LoginFunction` 追加（認証不要）
-- [ ] `events/login-event.json` 作成
+フロントが Cognito に直接 `authenticateUser()` するため、このAPI・
+`functions/auth/login.mjs`・`LoginFunction` は削除済み。
 
 ---
 
@@ -77,12 +75,10 @@
 
 > IF設計書: [regist.md](IF/regist.md)
 
-- [ ] `functions/auth/register.mjs`
-  - バリデーション（username / password / circuit）
-  - パスワード強度チェック（半角英数字のみ・大文字小文字を有効化・6〜20文字）
-  - `bcryptjs` でパスワードハッシュ化
-  - UsersTable に `PutItem`（ConditionExpression で重複チェック）
-- [ ] `template.yaml` に `RegisterFunction` 追加（認証不要）
+- [x] `functions/auth/register.mjs`
+  - バリデーション（username / sub / circuit）※password は扱わない（Cognito管理）
+  - UsersTable に `PutItem`（`sub` / `admin: false` / ConditionExpression で重複チェック）
+- [x] `template.yaml` に `RegisterFunction`（認証不要）
 - [ ] `events/register-event.json` 作成
 
 ---
@@ -103,46 +99,41 @@
 
 > IF設計書: [userMenu2.md](IF/userMenu2.md)
 
-- [ ] `functions/auth/profile.mjs`
-  - JWT から `username` を取得
+- [x] `functions/auth/profile.mjs`
+  - `requestContext.authorizer.username`（Cognito検証済み）を取得
   - UsersTable から `GetItem`
-  - OrganizationsTable から `GetItem`（organization_id で検索）
-  - `username`, `circuit` を返却
-- [ ] `template.yaml` に `ProfileFunction` 追加（認証必要）
+  - `username`, `circuit`, `isAdmin` を返却
+- [x] `template.yaml` に `ProfileFunction`（認証必要）
 - [ ] `events/profile-event.json` 作成
 
 ---
 
-### POST `/user/password` — パスワード変更
+### （廃止）POST `/user/password` — パスワード変更
 
 > IF設計書: [forgetPass.md](IF/forgetPass.md)
 
-- [ ] `functions/auth/changePassword.mjs`
-  - バリデーション（`username` / `password` / `newpassword`: 半角英数大文字小文字・6〜20文字）
-  - UsersTable から `GetItem`
-  - `bcryptjs` で現在パスワード照合
-  - 新パスワード ≠ 現在パスワード・過去パスワード チェック
-  - `bcryptjs` で新パスワードハッシュ化 → `UpdateItem`
-- [ ] `template.yaml` に `ChangePasswordFunction` 追加（認証必要）
-- [ ] `events/change-password-event.json` 作成
+フロントが Cognito に直接 `forgotPassword()` / `confirmPassword()` するため、
+このAPI・`functions/auth/changePassword.mjs`・`ChangePasswordFunction` は削除済み。
 
 ---
 
 ### インフラ設定（Phase 2 共通）
 
-- [ ] Lambda Authorizer（`functions/auth/authorizer.mjs`）
+- [x] Lambda Authorizer（`functions/auth/authorizer.mjs`）
   - Authorization ヘッダから Bearer トークン抽出
-  - `jsonwebtoken` で JWT 検証
-  - IAM ポリシードキュメント（Allow / Deny）を返却
-- [ ] JWT シークレットを SSM Parameter Store に登録（Lambda 環境変数 `JWT_SECRET` で参照）
+  - `aws-jwt-verify`（`CognitoJwtVerifier`）で Cognito ID トークンを JWKS 検証
+  - IAM ポリシードキュメント（Allow / Deny）を返却。context に `username` を格納
+- [x] Cognito User Pool ID / Client ID を Lambda 環境変数（`COGNITO_USER_POOL_ID` / `COGNITO_CLIENT_ID`）で参照
+  - ※ JWT シークレットの SSM 登録は不要になった（自前JWT発行を廃止したため）
 - [ ] API Gateway: CORS 設定・Authorizer 設定
 
 ### 動作確認（Phase 2）
 
 - [ ] `sam build` && `sam local start-api`
-- [ ] ユーザー登録 → ログイン → JWT 取得 の一連フローをテスト
-- [ ] 大会ID照会 / プロフィール取得 / パスワード変更が正常動作することを確認
-- [ ] JWT なしリクエストが 401 になることを確認
+- [ ] Cognito signUp → confirmRegistration → `/user` 登録 → Cognito authenticateUser → ID トークン取得 の一連フローをテスト
+- [ ] 大会ID照会 / プロフィール取得（isAdmin含む）が正常動作することを確認
+- [ ] Cognito forgotPassword → confirmPassword でパスワード再設定できることを確認
+- [ ] トークンなしリクエストが 401 になることを確認
 
 ---
 

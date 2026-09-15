@@ -18,6 +18,11 @@
 
 # インターフェース仕様
 
+登録は2段階。①フロントが Cognito に直接 `signUp` → 確認コード入力で
+`confirmRegistration`（common.js の `cognitoPool` を使用） → ②確認が通った後に
+このAPIを呼び、アプリ側の UsersTable にユーザーを登録する。
+**パスワードはこのAPIには送らない**（Cognito側で保持・照合するため）。
+
 ## API パス
 
 - `/user`
@@ -36,14 +41,13 @@
 
 担当者名はひらがな・カタカナ・漢字を有効化
 4-20文字以内
-パスワードは半角英数の大文字小文字・6-20文字以内
 サーキットは半角数字が下記のパターン入ります。
 全部必須入力です
 
 ```json
 {
   "username": "あそう太郎", // 担当者名
-  "password": "password", // パスワード（平文）
+  "sub": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", // Cognitoの signUp が返す userSub
 
   //１：富士　2：茂木　3：菅生　4:鈴鹿　5:岡山国際　6:その他　7:無所属
   "circuit": "1" //サーキット

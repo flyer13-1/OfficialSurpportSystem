@@ -17,7 +17,7 @@
 - 正規表現：`/^[ぁ-んァ-ヶ一-鿿㐀-䶿]{4,20}$/`
   - `ぁ-ん`＝ひらがな / `ァ-ヶ`＝カタカナ(長音符「ー」は含まない) /
     `一-鿿`＝漢字(U+4E00–U+9FFF) / `㐀-䶿`＝CJK拡張A(U+3400–U+4DBF)
-- 使用箇所：login / register / changePassword
+- 使用箇所：login（フロントのみ。Cognito authenticateUser の Username） / register（フロント + register.mjs） / forgetPass（フロントのみ。Cognito forgotPassword の Username）
 
 ## パスワード（password）
 
@@ -27,7 +27,9 @@
 - 構成条件：大文字・小文字・数字をそれぞれ1文字以上含む
 - 文字数：6文字以上 20文字以下
 - 正規表現：`/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z0-9]{6,20}$/`
-- 使用箇所：login / register / changePassword（newpassword）
+- 使用箇所：login（フロントのみ。Cognitoが照合） / register（フロントのみ。Cognito signUp）
+  / forgetPass（フロントのみ。Cognito confirmPassword の newPassword）
+  ※ いずれもバックエンドLambdaでのパスワード検証は行わない（Cognitoが一元管理）
 
 ## 大会ID（raceid / todayId）
 

@@ -41,13 +41,17 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 | 属性 | 型 | キー | NULL | SQL対応 | 備考 |
 |---|---|---|---|---|---|
 | username | S | PK | NO | username | ひらがな・カタカナ・漢字 4〜20文字（アプリ検証）|
-| password_hash | S | | NO | password_hash | bcrypt 60文字 |
+| sub | S | | NO | cognito_sub | Cognito の userSub。認証（パスワード）は Cognito 側で完結し、こちらでは保持しない |
 | organization_id | N | | NO | organization_id | organizations.circuit を参照 |
-| **admin** | BOOL | | NO | admin | **追加分**。既定 false。register 時に必ず false を書く。出力(outpost)の認可で使用 |
+| admin | BOOL | | NO | admin | 既定 false。register 時に必ず false を書く。管理者APIの認可・出力(outpost)の認可で使用 |
 | created_at | S | | NO | created_at | ISO8601 |
 | updated_at | S | | NO | updated_at | ISO8601 |
 
-> 変更点: 現状 register.mjs は `admin` を書いていない → **`admin: false` を追加**する。
+> 変更点（ログイン機構の Cognito 移行に伴う改定）:
+> - `password_hash` を廃止し、Cognito の `sub` を保持する列に置き換え。
+> - ログイン認証は Lambda Authorizer が Cognito ID トークンを JWKS 検証する方式に変更（`authorizer.mjs`）。
+>   自前 JWT 発行（`/login`）・パスワード変更API（`/user/password`）は廃止。
+> - `admin: false` を register.mjs が書き込むよう修正済み（旧 todoList.md の C-1 は解消）。
 
 ---
 
@@ -147,8 +151,9 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 | C: garage-out（ピットスタート）| null | ✓ | ✓ |
 
 - C は `out_time` 単独を許さず **`garage_in_time` を伴わせる**。`out_time` 単独だと入力ミス（in 押し忘れ）と区別できないため。
-- `enterAuto2.md` の「out_time のみ」の例は本ルールで無効。IF設計書側も追従修正が必要。
 - 派生: `garage_in_time` が非 null（B・C）のとき `pitGap` は null。
+
+> **auto（enterAuto）の例外（2026-06-22〜）**: 自動入力画面はガレージインを廃止し、`in_time` / `out_time` のみを扱う。auto 経由の保存は **`in_time` か `out_time` が最低1つあれば有効**（2つ必須・A/B/C 制約は適用しない。`garage_in_time` は常に null）。上記 A/B/C の 2-time ルールおよび「`out_time` 単独は無効」は **hand（enterHand）に対してのみ**適用する。
 
 ---
 
@@ -212,7 +217,9 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 
 1. **pit_log**: `CarNumIndex` GSI を**削除**（race 非スコープ・未使用）。
 2. **outpost_log**: `UsernameIndex` に RANGE=`created_at` を追加。
-3. **users**: `admin` 属性を register 時に書き込む（テーブル定義変更は不要＝スキーマレス）。
+3. **users**: `admin` 属性を register 時に書き込む（テーブル定義変更は不要＝スキーマレス）。**対応済み**。
+   あわせて `password_hash` → `sub`（Cognito userSub）に置き換え。ログイン認証は Cognito 移行済み
+   （`/login` `/user/password` の自前実装は廃止。詳細は本ファイル「2. users」参照）。
 4. **race**: `id` を「管理者が手動採番する非秘密 String」と明確化（型・キーは現状の S PK のまま）。
 5. action_type は大文字（UPDATE/DELETE）に統一し、**INSERT は記録しない**。
 6. pit_log_history は **項目単位（1項目=1レコード）** で差分のみ記録（field_name='multiple' 廃止）。
