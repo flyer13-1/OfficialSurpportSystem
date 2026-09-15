@@ -53,6 +53,7 @@
 {
   "msg": "",
   "username": "あそう太郎",
-  "circuit": "1"
+  "circuit": "1",
+  "isAdmin": false
 }
 ```
