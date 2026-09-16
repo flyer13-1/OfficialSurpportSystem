@@ -1,6 +1,5 @@
 import { GetCommand } from "@aws-sdk/lib-dynamodb";
-import jwt from "jsonwebtoken";
-import { docClient, Tables, response, getJwtSecret } from "/opt/nodejs/dynamodb.js";
+import { docClient, Tables, response } from "/opt/nodejs/dynamodb.js";
 
 /**
  * GET /user/me — プロフィール取得
@@ -8,48 +7,47 @@ import { docClient, Tables, response, getJwtSecret } from "/opt/nodejs/dynamodb.
  */
 export const handler = async (event) => {
   try {
-    // ── username を取得 ──
-    // 通常は Authorizer が requestContext.authorizer にセットする。
-    // Authorizer が未アタッチ等で context が無い場合は、Authorization
-    // ヘッダーの JWT を自前で検証して username を取り出す（フォールバック）。
-    let username = event.requestContext?.authorizer?.username;
+    // username は Authorizer が Cognito ID トークンを検証した上で
+    // requestContext.authorizer にセットする（authorizer.mjs 参照）。
+    const username = event.requestContext?.authorizer?.username;
     if (!username) {
-      const authHeader =
-        event.headers?.Authorization || event.headers?.authorization || "";
-      const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-      if (token) {
-        try {
-          const decoded = jwt.verify(token, await getJwtSecret());
-          username = decoded.username;
-        } catch {
-          // 署名不正・期限切れなどは未認証として扱う
-        }
-      }
-    }
-    if (!username) {
-      return response(401, { msg: "認証が必要です", username: "", circuit: "" });
+      return response(401, {
+        msg: "認証が必要です",
+        username: "",
+        circuit: "",
+      });
     }
 
     // ── UsersTable から GetItem ──
     const userResult = await docClient.send(
       new GetCommand({
         TableName: Tables.users,
-        Key:       { username },
-      })
+        Key: { username },
+      }),
     );
 
     if (!userResult.Item) {
-      return response(400, { msg: "ユーザーが見つかりません", username: "", circuit: "" });
+      return response(400, {
+        msg: "ユーザーが見つかりません",
+        username: "",
+        circuit: "",
+      });
     }
 
     return response(200, {
-      msg:      "",
+      msg: "",
       username: userResult.Item.username,
-      circuit:  String(userResult.Item.organization_id),
-      isAdmin:  userResult.Item.isAdmin ?? false,
+      circuit: String(userResult.Item.organization_id),
+      // 管理者判定は Cognito の leader グループ由来（Authorizer が context に
+      // isAdmin をセット。文字列で届く）。conform.js / userMenu2.md が参照。
+      isAdmin: event.requestContext?.authorizer?.isAdmin === "true",
     });
   } catch (err) {
     console.error("profile error:", err);
-    return response(500, { msg: "サーバーエラーが発生しました", username: "", circuit: "" });
+    return response(500, {
+      msg: "サーバーエラーが発生しました",
+      username: "",
+      circuit: "",
+    });
   }
 };

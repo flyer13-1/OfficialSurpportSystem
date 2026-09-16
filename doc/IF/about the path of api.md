@@ -1,6 +1,6 @@
-index.html /login
-regist.html /user
-forgetPass.html /user/password
+index.html （Cognito authenticateUser。バックエンドAPIなし）
+regist.html /user （Cognito signUp/confirm後に呼ぶ）
+forgetPass.html （Cognito forgotPassword/confirmPassword。バックエンドAPIなし）
 
 userMenu.html /user/me (POST: 大会ID照会), /user/me (GET: プロフィール取得)
 mainMenu.html /entries
@@ -14,6 +14,5 @@ showAll.html /entries/show
 output.html /entries/show
 
 --- 新規追加API ---
-/user/password (POST: パスワード変更)
 /entry/bulk (POST: エントリー一括登録)
 /entry/start-driver/bulk (POST: スタートドライバー一括登録)

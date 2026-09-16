@@ -1,25 +1,33 @@
 import { PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
-import bcrypt from "bcryptjs";
 import { docClient, Tables, response } from "/opt/nodejs/dynamodb.js";
 
 /**
  * POST /user — ユーザー登録
  * IF設計書: regist.md
+ *
+ * 認証・パスワード管理は Cognito 側で完結する（フロントが signUp →
+ * confirmRegistration まで済ませた後に呼ぶ）。ここでは確認済みユーザーの
+ * sub と所属サーキットをアプリ側の UsersTable に記録するのみ。
  */
 export const handler = async (event) => {
   try {
     const body = JSON.parse(event.body || "{}");
-    const { username, password, circuit } = body;
+    const { username, sub, circuit } = body;
 
     // ── バリデーション ──
-    if (!username || !password || circuit === undefined || circuit === null || circuit === "") {
-      return response(400, { msg: "担当者名・パスワード・サーキットは必須です" });
+    if (
+      !username ||
+      !sub ||
+      circuit === undefined ||
+      circuit === null ||
+      circuit === ""
+    ) {
+      return response(400, { msg: "担当者名・sub・サーキットは必須です" });
     }
     if (!/^[ぁ-んァ-ヶ一-鿿㐀-䶿]{4,20}$/.test(username)) {
-      return response(400, { msg: "担当者名はひらがな・カタカナ・漢字で4〜20文字です" });
-    }
-    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z0-9]{6,20}$/.test(password)) {
-      return response(400, { msg: "パスワードは大文字・小文字・数字を含む半角英数字で6〜20文字です" });
+      return response(400, {
+        msg: "担当者名はひらがな・カタカナ・漢字で4〜20文字です",
+      });
     }
     const circuitNum = Number(circuit);
     if (!Number.isInteger(circuitNum) || circuitNum < 1 || circuitNum > 7) {
@@ -31,14 +39,12 @@ export const handler = async (event) => {
       new GetCommand({
         TableName: Tables.organizations,
         Key: { circuit: circuitNum },
-      })
+      }),
     );
     if (!orgResult.Item) {
       return response(400, { msg: "指定されたサーキットが存在しません" });
     }
 
-    // ── パスワードハッシュ化 ──
-    const password_hash = await bcrypt.hash(password, 10);
     const now = new Date().toISOString();
 
     // ── UsersTable に PutItem（重複チェック付き）──
@@ -48,13 +54,12 @@ export const handler = async (event) => {
           TableName: Tables.users,
           Item: {
             username,
-            password_hash,
+            sub, // Cognito の userSub（ユーザー識別子）
             organization_id: circuitNum,
-            created_at:      now,
-            updated_at:      now,
+            created_at: now,
           },
           ConditionExpression: "attribute_not_exists(username)",
-        })
+        }),
       );
     } catch (err) {
       if (err.name === "ConditionalCheckFailedException") {

@@ -1,4 +1,4 @@
-# DynamoDB テーブル設計書
+git# DynamoDB テーブル設計書
 
 `SQLcode.sql`（リレーショナル設計＝正）を DynamoDB に落とし込んだ設計。
 SQL のテーブル名・項目名・項目順・型に揃えることを原則とし、DynamoDB の制約で

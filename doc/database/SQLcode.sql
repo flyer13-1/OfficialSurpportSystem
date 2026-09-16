@@ -19,6 +19,8 @@
 -- ・users.username に CHECK制約追加（ひらがな・カタカナ・漢字 4〜20文字）/ VARCHAR(20)に縮小
 -- ・race.today_id に CHECK制約追加（半角英数字 15文字以上）
 -- ・outpost_log テーブルを新規追加（showAll API の act=1 アクセスログ）
+-- ・users.password_hash を廃止。ログイン認証を Cognito User Pool に移行し、
+--   代わりに Cognito の userSub を持つ cognito_sub を追加（UNIQUE）
 -----------------
 
 
@@ -35,7 +37,7 @@ CREATE TABLE organizations (
 CREATE TABLE users (
     id              INT          NOT NULL AUTO_INCREMENT,
     username        VARCHAR(20)  NOT NULL UNIQUE,  --担当者名（ひらがな・カタカナ・漢字 4〜20文字）
-    password_hash   CHAR(60)     NOT NULL,         --ハッシュ化されたパスワード（bcrypt 60字）
+    cognito_sub     CHAR(36)     NOT NULL UNIQUE,  --Cognito の userSub（認証はCognito側で完結）
     organization_id INT          NOT NULL,
     admin       BOOLEAN      NOT NULL DEFAULT FALSE, --管理者フラグ（TRUE=管理者 FALSE=一般）
     created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
@@ -55,6 +57,8 @@ CREATE TABLE race (
     id       INT          NOT NULL AUTO_INCREMENT,
     title    VARCHAR(200) NOT NULL UNIQUE,
     today_id VARCHAR(50)  NOT NULL UNIQUE, --大会ID（conform1 POST で照合）
+    race_date DATE         NOT NULL,         --レース開催日
+    circuit  INT          NOT NULL,         --サーキット番号（organizations.circuit）
     PRIMARY KEY (id),
     CONSTRAINT chk_today_id CHECK (
         CHAR_LENGTH(today_id) >= 15
