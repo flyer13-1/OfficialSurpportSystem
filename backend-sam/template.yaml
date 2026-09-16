@@ -23,8 +23,8 @@ Globals:
       Variables:
         # ログイン認証は Cognito User Pool が担う（Lambda Authorizer が
         # ID トークンを JWKS で検証する。authorizer.mjs 参照）。
-        COGNITO_USER_POOL_ID: "us-east-1_P6B4NaQPe"
-        COGNITO_CLIENT_ID: "7i8g9mqjr6a932isnp7nkl1csj"
+        COGNITO_USER_POOL_ID: "ap-northeast-1_CieJXqC9H"
+        COGNITO_CLIENT_ID: "404fhgre43fnt3pbb7bfv2c33v"
 
         USERS_TABLE: !Ref UsersTable
         ORGANIZATIONS_TABLE: !Ref OrganizationsTable
@@ -432,17 +432,17 @@ Resources:
 
   # ===== Phase 1: DynamoDB テーブル =====
 
-  # ユーザーテーブル: PK=username
+  # ユーザーテーブル: PK=cognito_sub
   UsersTable:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Sub "OfficialSupportSystem-${Env}-Users"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - AttributeName: username
+        - AttributeName: cognito_sub
           AttributeType: S
       KeySchema:
-        - AttributeName: username
+        - AttributeName: cognito_sub
           KeyType: HASH
 
   # 組織テーブル: PK=circuit（サーキット番号）
