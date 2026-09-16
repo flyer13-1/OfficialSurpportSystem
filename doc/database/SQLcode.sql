@@ -35,14 +35,12 @@ CREATE TABLE organizations (
 -- ログイン情報
 
 CREATE TABLE users (
-    id              INT          NOT NULL AUTO_INCREMENT,
-    username        VARCHAR(20)  NOT NULL UNIQUE,  --担当者名（ひらがな・カタカナ・漢字 4〜20文字）
     cognito_sub     CHAR(36)     NOT NULL UNIQUE,  --Cognito の userSub（認証はCognito側で完結）
+    username        VARCHAR(20)  NOT NULL UNIQUE,  --担当者名（ひらがな・カタカナ・漢字 4〜20文字）
     organization_id INT          NOT NULL,
-    admin       BOOLEAN      NOT NULL DEFAULT FALSE, --管理者フラグ（TRUE=管理者 FALSE=一般）
     created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
-    updated_at      DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
+    updated_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (cognito_sub),
     FOREIGN KEY (organization_id) REFERENCES organizations(circuit),
     CONSTRAINT chk_username CHECK (
         CHAR_LENGTH(username) BETWEEN 4 AND 20
@@ -58,8 +56,9 @@ CREATE TABLE race (
     title    VARCHAR(200) NOT NULL UNIQUE,
     today_id VARCHAR(50)  NOT NULL UNIQUE, --大会ID（conform1 POST で照合）
     race_date DATE         NOT NULL,         --レース開催日
-    circuit  INT          NOT NULL,         --サーキット番号（organizations.circuit）
+    organization_id  INT          NOT NULL,         --サーキット番号（organizations.circuit）
     PRIMARY KEY (id),
+    FOREIGN KEY (organization_id) REFERENCES organizations(circuit),
     CONSTRAINT chk_today_id CHECK (
         CHAR_LENGTH(today_id) >= 15
         AND today_id REGEXP '^[A-Za-z0-9]+$'

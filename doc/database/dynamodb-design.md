@@ -1,4 +1,6 @@
-git# DynamoDB テーブル設計書
+git
+
+# DynamoDB テーブル設計書
 
 `SQLcode.sql`（リレーショナル設計＝正）を DynamoDB に落とし込んだ設計。
 SQL のテーブル名・項目名・項目順・型に揃えることを原則とし、DynamoDB の制約で
@@ -36,18 +38,15 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 
 ## 2. users（ログイン情報）
 
-- PK: `username`（SQL の代理キー `id` は廃止し、UNIQUE だった username をキーにする）
+- PK: `cognito_sub`（SQL の代理キー `id` は廃止。一意となるこれを参照）
 
-| 属性            | 型   | キー | NULL | SQL対応         | 備考                                                                              |
-| --------------- | ---- | ---- | ---- | --------------- | --------------------------------------------------------------------------------- |
-| username        | S    | PK   | NO   | username        | ひらがな・カタカナ・漢字 4〜20文字（アプリ検証）                                  |
-| password_hash   | S    |      | NO   | password_hash   | bcrypt 60文字                                                                     |
-| organization_id | N    |      | NO   | organization_id | organizations.circuit を参照                                                      |
-| **isAdmin**     | BOOL |      | NO   | admin           | **追加分**。既定 false。register 時に必ず false を書く。出力(outpost)の認可で使用 |
-| created_at      | S    |      | NO   | created_at      | ISO8601                                                                           |
-| updated_at      | S    |      | NO   | updated_at      | ISO8601                                                                           |
-
-> 変更点: 現状 register.mjs は `admin` を書いていない → **`admin: false` を追加**する。
+| 属性            | 型  | キー | NULL | SQL対応         | 備考                                             |
+| --------------- | --- | ---- | ---- | --------------- | ------------------------------------------------ |
+| cognito_sub     | S   | pk   | NO   | cognito_sub     |
+| username        | S   |      | NO   | username        | ひらがな・カタカナ・漢字 4〜20文字（アプリ検証） |
+| organization_id | N   |      | NO   | organization_id | organizations.circuit を参照                     |
+| created_at      | S   |      | NO   | created_at      | ISO8601                                          |
+| updated_at      | S   |      | NO   | updated_at      | ISO8601                                          |
 
 ---
 
@@ -55,11 +54,12 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 
 - PK: `id`
 
-| 属性     | 型  | キー | NULL | SQL対応  | 備考                                                                               |
-| -------- | --- | ---- | ---- | -------- | ---------------------------------------------------------------------------------- |
-| id       | S   | PK   | NO   | id       | **非秘密**の識別子。登録時に管理者が一意文字列を付与（AUTO_INCREMENT代替）         |
-| title    | S   |      | NO   | title    | UNIQUE はアプリで担保                                                              |
-| today_id | S   |      | NO   | today_id | **秘密（大会ID）**。半角英数15文字以上。conform でのみ照合。`race_id` には使わない |
+| 属性            | 型  | キー | NULL | SQL対応         | 備考                                                                               |
+| --------------- | --- | ---- | ---- | --------------- | ---------------------------------------------------------------------------------- |
+| id              | S   | PK   | NO   | id              | **非秘密**の識別子。登録時に管理者が一意文字列を付与（AUTO_INCREMENT代替）         |
+| title           | S   |      | NO   | title           | UNIQUE はアプリで担保                                                              |
+| today_id        | S   |      | NO   | today_id        | **秘密（大会ID）**。半角英数15文字以上。conform でのみ照合。`race_id` には使わない |
+| organization_id | N   |      | NO   | organization_id | organizations.circuit を参照                                                       |
 
 > 変更点: conform.mjs は `race.id` を返す（現状通り）。`id` を String の手動採番にすることでこれが成立する。
 
