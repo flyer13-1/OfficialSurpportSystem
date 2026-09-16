@@ -27,10 +27,10 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 
 - PK: `circuit`
 
-| 属性 | 型 | キー | NULL | SQL対応 | 備考 |
-|---|---|---|---|---|---|
-| circuit | N | PK | NO | circuit | 1=富士 2=茂木 3=菅生 4=鈴鹿 5=岡山国際 6=その他 7=無所属 |
-| name | S | | NO | name | 組織名（UNIQUE は登録時にアプリで担保）|
+| 属性    | 型  | キー | NULL | SQL対応 | 備考                                                     |
+| ------- | --- | ---- | ---- | ------- | -------------------------------------------------------- |
+| circuit | N   | PK   | NO   | circuit | 1=富士 2=茂木 3=菅生 4=鈴鹿 5=岡山国際 6=その他 7=無所属 |
+| name    | S   |      | NO   | name    | 組織名（UNIQUE は登録時にアプリで担保）                  |
 
 ---
 
@@ -38,14 +38,14 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 
 - PK: `username`（SQL の代理キー `id` は廃止し、UNIQUE だった username をキーにする）
 
-| 属性 | 型 | キー | NULL | SQL対応 | 備考 |
-|---|---|---|---|---|---|
-| username | S | PK | NO | username | ひらがな・カタカナ・漢字 4〜20文字（アプリ検証）|
-| password_hash | S | | NO | password_hash | bcrypt 60文字 |
-| organization_id | N | | NO | organization_id | organizations.circuit を参照 |
-| **admin** | BOOL | | NO | admin | **追加分**。既定 false。register 時に必ず false を書く。出力(outpost)の認可で使用 |
-| created_at | S | | NO | created_at | ISO8601 |
-| updated_at | S | | NO | updated_at | ISO8601 |
+| 属性            | 型   | キー | NULL | SQL対応         | 備考                                                                              |
+| --------------- | ---- | ---- | ---- | --------------- | --------------------------------------------------------------------------------- |
+| username        | S    | PK   | NO   | username        | ひらがな・カタカナ・漢字 4〜20文字（アプリ検証）                                  |
+| password_hash   | S    |      | NO   | password_hash   | bcrypt 60文字                                                                     |
+| organization_id | N    |      | NO   | organization_id | organizations.circuit を参照                                                      |
+| **isAdmin**     | BOOL |      | NO   | admin           | **追加分**。既定 false。register 時に必ず false を書く。出力(outpost)の認可で使用 |
+| created_at      | S    |      | NO   | created_at      | ISO8601                                                                           |
+| updated_at      | S    |      | NO   | updated_at      | ISO8601                                                                           |
 
 > 変更点: 現状 register.mjs は `admin` を書いていない → **`admin: false` を追加**する。
 
@@ -55,11 +55,11 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 
 - PK: `id`
 
-| 属性 | 型 | キー | NULL | SQL対応 | 備考 |
-|---|---|---|---|---|---|
-| id | S | PK | NO | id | **非秘密**の識別子。登録時に管理者が一意文字列を付与（AUTO_INCREMENT代替）|
-| title | S | | NO | title | UNIQUE はアプリで担保 |
-| today_id | S | | NO | today_id | **秘密（大会ID）**。半角英数15文字以上。conform でのみ照合。`race_id` には使わない |
+| 属性     | 型  | キー | NULL | SQL対応  | 備考                                                                               |
+| -------- | --- | ---- | ---- | -------- | ---------------------------------------------------------------------------------- |
+| id       | S   | PK   | NO   | id       | **非秘密**の識別子。登録時に管理者が一意文字列を付与（AUTO_INCREMENT代替）         |
+| title    | S   |      | NO   | title    | UNIQUE はアプリで担保                                                              |
+| today_id | S   |      | NO   | today_id | **秘密（大会ID）**。半角英数15文字以上。conform でのみ照合。`race_id` には使わない |
 
 > 変更点: conform.mjs は `race.id` を返す（現状通り）。`id` を String の手動採番にすることでこれが成立する。
 
@@ -69,17 +69,17 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 
 - PK: `race_id` / SK: `car_num`
 
-| 属性 | 型 | キー | NULL | SQL対応 | 備考 |
-|---|---|---|---|---|---|
-| race_id | S | PK | NO | race_id | race.id |
-| car_num | N | SK | NO | car_num | 車番 |
-| class_name | S | | YES | class_name | クラス名 |
-| entrant_name | S | | YES | entrant_name | エントラント名 |
-| vehicle_name | S | | YES | vehicle_name | 参加車両名 |
-| maintenance_area | S | | YES | maintenance_area | 作業エリア（"1〜45" または範囲文字列 "5-10"）|
-| pit_garage | S | | YES | pit_garage | ピットガレージ割り当て |
-| driver_a | S | | NO | driver_a | 代表ドライバ（必須）|
-| driver_b〜driver_f | S | | YES | driver_b〜f | 最大6名。未登録は欠落（null）|
+| 属性               | 型  | キー | NULL | SQL対応          | 備考                                          |
+| ------------------ | --- | ---- | ---- | ---------------- | --------------------------------------------- |
+| race_id            | S   | PK   | NO   | race_id          | race.id                                       |
+| car_num            | N   | SK   | NO   | car_num          | 車番                                          |
+| class_name         | S   |      | YES  | class_name       | クラス名                                      |
+| entrant_name       | S   |      | YES  | entrant_name     | エントラント名                                |
+| vehicle_name       | S   |      | YES  | vehicle_name     | 参加車両名                                    |
+| maintenance_area   | S   |      | YES  | maintenance_area | 作業エリア（"1〜45" または範囲文字列 "5-10"） |
+| pit_garage         | S   |      | YES  | pit_garage       | ピットガレージ割り当て                        |
+| driver_a           | S   |      | NO   | driver_a         | 代表ドライバ（必須）                          |
+| driver_b〜driver_f | S   |      | YES  | driver_b〜f      | 最大6名。未登録は欠落（null）                 |
 
 ---
 
@@ -87,11 +87,11 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 
 - PK: `race_id` / SK: `car_num`
 
-| 属性 | 型 | キー | NULL | SQL対応 | 備考 |
-|---|---|---|---|---|---|
-| race_id | S | PK | NO | race_id | |
-| car_num | N | SK | NO | car_num | |
-| driver | S | | NO | driver | A〜F のいずれか |
+| 属性    | 型  | キー | NULL | SQL対応 | 備考            |
+| ------- | --- | ---- | ---- | ------- | --------------- |
+| race_id | S   | PK   | NO   | race_id |                 |
+| car_num | N   | SK   | NO   | car_num |                 |
+| driver  | S   |      | NO   | driver  | A〜F のいずれか |
 
 ---
 
@@ -100,12 +100,12 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 - PK: `race_id` / SK: `username#maintenance_area`
 - GSI **UsernameIndex**: HASH=`username`, RANGE=`maintenance_area`
 
-| 属性 | 型 | キー | NULL | SQL対応 | 備考 |
-|---|---|---|---|---|---|
-| race_id | S | PK | NO | race_id | |
-| username#maintenance_area | S | SK | NO | —（合成）| (race_id,username,maintenance_area) の複合一意を表すための連結キー。DynamoDB の制約上やむを得ず追加 |
-| username | S | GSI-PK | NO | username | 担当監視員 |
-| maintenance_area | S | GSI-SK | NO | maintenance_area | 担当作業エリア |
+| 属性                      | 型  | キー   | NULL | SQL対応          | 備考                                                                                                |
+| ------------------------- | --- | ------ | ---- | ---------------- | --------------------------------------------------------------------------------------------------- |
+| race_id                   | S   | PK     | NO   | race_id          |                                                                                                     |
+| username#maintenance_area | S   | SK     | NO   | —（合成）        | (race_id,username,maintenance_area) の複合一意を表すための連結キー。DynamoDB の制約上やむを得ず追加 |
+| username                  | S   | GSI-PK | NO   | username         | 担当監視員                                                                                          |
+| maintenance_area          | S   | GSI-SK | NO   | maintenance_area | 担当作業エリア                                                                                      |
 
 > init.mjs は UsernameIndex を username で Query し race_id でフィルタしている（現状通り）。
 
@@ -116,22 +116,22 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 - PK: `race_id` / SK: `id`（ULID）
 - **GSI なし**（現状の `CarNumIndex` は race スコープ未対応かつ未使用のため削除）
 
-| 属性 | 型 | キー | NULL | SQL対応 | 備考 |
-|---|---|---|---|---|---|
-| id | S | SK | NO | id | **ULID**（SQL の INT AUTO_INCREMENT 代替）|
-| race_id | S | PK | NO | race_id | |
-| car_num | N | | NO | car_num | |
-| username | S | | NO | username | 記録担当者 |
-| pit_num | N | | NO | pit_num | 何回目のピットイン。`max+1` で採番（アプリ）。pit_num=1→スタートドライバー |
-| in_time | S | | YES | in_time | null 許容（下の time 検証ルール参照）|
-| out_time | S | | YES | out_time | ガレージストップ時は2回目送信で UPDATE |
-| garage_in_time | S | | YES | garage_in_time | ガレージイン時刻。非 null のとき pitGap=null |
-| driver_out | S | | YES | driver_out | ピットアウト時ドライバ A〜F（CHAR(1)）|
-| tire | BOOL | | NO | tire | 既定 false |
-| oil | BOOL | | NO | oil | 既定 false |
-| note | S | | YES | note | 備考 |
-| created_at | S | | NO | created_at | ISO8601 |
-| updated_at | S | | NO | updated_at | ISO8601 |
+| 属性           | 型   | キー | NULL | SQL対応        | 備考                                                                       |
+| -------------- | ---- | ---- | ---- | -------------- | -------------------------------------------------------------------------- |
+| id             | S    | SK   | NO   | id             | **ULID**（SQL の INT AUTO_INCREMENT 代替）                                 |
+| race_id        | S    | PK   | NO   | race_id        |                                                                            |
+| car_num        | N    |      | NO   | car_num        |                                                                            |
+| username       | S    |      | NO   | username       | 記録担当者                                                                 |
+| pit_num        | N    |      | NO   | pit_num        | 何回目のピットイン。`max+1` で採番（アプリ）。pit_num=1→スタートドライバー |
+| in_time        | S    |      | YES  | in_time        | null 許容（下の time 検証ルール参照）                                      |
+| out_time       | S    |      | YES  | out_time       | ガレージストップ時は2回目送信で UPDATE                                     |
+| garage_in_time | S    |      | YES  | garage_in_time | ガレージイン時刻。非 null のとき pitGap=null                               |
+| driver_out     | S    |      | YES  | driver_out     | ピットアウト時ドライバ A〜F（CHAR(1)）                                     |
+| tire           | BOOL |      | NO   | tire           | 既定 false                                                                 |
+| oil            | BOOL |      | NO   | oil            | 既定 false                                                                 |
+| note           | S    |      | YES  | note           | 備考                                                                       |
+| created_at     | S    |      | NO   | created_at     | ISO8601                                                                    |
+| updated_at     | S    |      | NO   | updated_at     | ISO8601                                                                    |
 
 > 一意性 `(race_id, car_num, pit_num)` はキーではなく**アプリで担保**（1レース規模のため実害なし）。
 > `pitGap`（out_time − in_time 秒）はレスポンス生成時に計算する派生値で **DB保存しない**。
@@ -140,11 +140,11 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 
 `in_time` / `out_time` / `garage_in_time` はスキーマ上すべて null 許容だが、**有効なのは以下の3パターン（必ず time 2つ）のみ**。それ以外（time が 0個 / 1個 / 3個、`out_time` 単独 等）は**入力ミスとしてエラー**にする。
 
-| パターン | in_time | out_time | garage_in_time |
-|---|---|---|---|
-| A: in-out（通常）| ✓ | ✓ | null |
-| B: in-garage（ガレージ作業）| ✓ | null | ✓ |
-| C: garage-out（ピットスタート）| null | ✓ | ✓ |
+| パターン                        | in_time | out_time | garage_in_time |
+| ------------------------------- | ------- | -------- | -------------- |
+| A: in-out（通常）               | ✓       | ✓        | null           |
+| B: in-garage（ガレージ作業）    | ✓       | null     | ✓              |
+| C: garage-out（ピットスタート） | null    | ✓        | ✓              |
 
 - C は `out_time` 単独を許さず **`garage_in_time` を伴わせる**。`out_time` 単独だと入力ミス（in 押し忘れ）と区別できないため。
 - `enterAuto2.md` の「out_time のみ」の例は本ルールで無効。IF設計書側も追従修正が必要。
@@ -157,16 +157,16 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 - PK: `pit_log_id` / SK: `id`（ULID）
 - GSI **ModifiedByIndex**: HASH=`modified_by`, RANGE=`modified_at`
 
-| 属性 | 型 | キー | NULL | SQL対応 | 備考 |
-|---|---|---|---|---|---|
-| id | S | SK | NO | id | ULID |
-| pit_log_id | S | PK | NO | pit_log_id | 対象 pit_log.id（ULID を参照）|
-| action_type | S | | NO | action_type | UPDATE / DELETE（**大文字**。**INSERT は記録しない**＝新規作成は履歴対象外）。現状 "update" 小文字 → 要修正 |
-| modified_by | S | GSI-PK | NO | modified_by | 操作者 |
-| modified_at | S | GSI-SK | NO | modified_at | ISO8601 |
-| field_name | S | | YES | field_name | 変更項目 |
-| old_value | S | | YES | old_value | 変更前の値（その項目単体）|
-| new_value | S | | YES | new_value | 変更後の値（その項目単体）|
+| 属性        | 型  | キー   | NULL | SQL対応     | 備考                                                                                                        |
+| ----------- | --- | ------ | ---- | ----------- | ----------------------------------------------------------------------------------------------------------- |
+| id          | S   | SK     | NO   | id          | ULID                                                                                                        |
+| pit_log_id  | S   | PK     | NO   | pit_log_id  | 対象 pit_log.id（ULID を参照）                                                                              |
+| action_type | S   |        | NO   | action_type | UPDATE / DELETE（**大文字**。**INSERT は記録しない**＝新規作成は履歴対象外）。現状 "update" 小文字 → 要修正 |
+| modified_by | S   | GSI-PK | NO   | modified_by | 操作者                                                                                                      |
+| modified_at | S   | GSI-SK | NO   | modified_at | ISO8601                                                                                                     |
+| field_name  | S   |        | YES  | field_name  | 変更項目                                                                                                    |
+| old_value   | S   |        | YES  | old_value   | 変更前の値（その項目単体）                                                                                  |
+| new_value   | S   |        | YES  | new_value   | 変更後の値（その項目単体）                                                                                  |
 
 ### 履歴の記録方法（重要）
 
@@ -183,12 +183,12 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 
 - PK: `race_id` / SK: `car_num`
 
-| 属性 | 型 | キー | NULL | SQL対応 | 備考 |
-|---|---|---|---|---|---|
-| race_id | S | PK | NO | race_id | |
-| car_num | N | SK | NO | car_num | |
-| is_retired | BOOL | | NO | is_retired | 既定 false。取り消しは false に UPDATE |
-| reason | S | | YES | reason | リタイア理由 |
+| 属性       | 型   | キー | NULL | SQL対応    | 備考                                   |
+| ---------- | ---- | ---- | ---- | ---------- | -------------------------------------- |
+| race_id    | S    | PK   | NO   | race_id    |                                        |
+| car_num    | N    | SK   | NO   | car_num    |                                        |
+| is_retired | BOOL |      | NO   | is_retired | 既定 false。取り消しは false に UPDATE |
+| reason     | S    |      | YES  | reason     | リタイア理由                           |
 
 > 注意: updatePut の selection=2（reason 更新）は対象が無いと is_retired 欠落のまま作成され得る。upsert 時に is_retired を含めるようアプリで担保する。
 
@@ -199,12 +199,12 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 - PK: `race_id` / SK: `id`（ULID）
 - GSI **UsernameIndex**: HASH=`username`, RANGE=`created_at`（担当者別に時系列で引けるよう RANGE を追加）
 
-| 属性 | 型 | キー | NULL | SQL対応 | 備考 |
-|---|---|---|---|---|---|
-| id | S | SK | NO | id | ULID |
-| race_id | S | PK | NO | race_id | |
-| username | S | GSI-PK | NO | username | アクセスした担当者（JWT から取得）|
-| created_at | S | GSI-SK | NO | created_at | ISO8601 |
+| 属性       | 型  | キー   | NULL | SQL対応    | 備考                               |
+| ---------- | --- | ------ | ---- | ---------- | ---------------------------------- |
+| id         | S   | SK     | NO   | id         | ULID                               |
+| race_id    | S   | PK     | NO   | race_id    |                                    |
+| username   | S   | GSI-PK | NO   | username   | アクセスした担当者（JWT から取得） |
+| created_at | S   | GSI-SK | NO   | created_at | ISO8601                            |
 
 ---
 
