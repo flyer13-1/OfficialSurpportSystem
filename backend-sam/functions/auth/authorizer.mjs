@@ -43,7 +43,10 @@ export const handler = async (event) => {
     // 後続 Lambda で使える context。値は文字列/数値/真偽値のみ（配列不可）で、
     // 真偽値は後続には "true"/"false" の文字列で届く点に注意。
     // 所属サーキットは UsersTable を参照する側で取得する（profile.mjs / admin.js 参照）。
-    policy.context = { username, isAdmin };
+    // sub は UsersTable の PK（cognito_sub）検索用。username（cognito:username）は
+    // Cognitoのサインイン設定変更によりメールアドレスになっているため、担当者名としては
+    // 使えない点に注意（profile.mjs は sub で引く。他Functionでの扱いは別issue）。
+    policy.context = { username, sub: payload.sub, isAdmin };
     return policy;
   } catch (err) {
     console.error("Authorizer error:", err.message);

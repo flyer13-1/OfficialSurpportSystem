@@ -7,10 +7,12 @@ import { docClient, Tables, response } from "/opt/nodejs/dynamodb.js";
  */
 export const handler = async (event) => {
   try {
-    // username は Authorizer が Cognito ID トークンを検証した上で
+    // sub（Cognitoのcognito_sub）は Authorizer が Cognito ID トークンを検証した上で
     // requestContext.authorizer にセットする（authorizer.mjs 参照）。
-    const username = event.requestContext?.authorizer?.username;
-    if (!username) {
+    // UsersTable の PK は cognito_sub のため、これで引く（authorizer.username は
+    // Cognitoのサインイン設定変更によりメールアドレスになっており担当者名ではない）。
+    const sub = event.requestContext?.authorizer?.sub;
+    if (!sub) {
       return response(401, {
         msg: "認証が必要です",
         username: "",
@@ -22,7 +24,7 @@ export const handler = async (event) => {
     const userResult = await docClient.send(
       new GetCommand({
         TableName: Tables.users,
-        Key: { username },
+        Key: { cognito_sub: sub },
       }),
     );
 

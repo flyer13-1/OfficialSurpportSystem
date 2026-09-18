@@ -18,10 +18,13 @@
 
 # インターフェース仕様
 
-登録は2段階。①フロントが Cognito に直接 `signUp` → 確認コード入力で
-`confirmRegistration`（common.js の `cognitoPool` を使用） → ②確認が通った後に
-このAPIを呼び、アプリ側の UsersTable にユーザーを登録する。
-**パスワードはこのAPIには送らない**（Cognito側で保持・照合するため）。
+登録は3段階。
+
+- ①checkUserを使って担当者名の重複確認　
+- ②フロントが Cognito に直接 `signUp` → 確認コード入力で
+  `confirmRegistration`（common.js の `cognitoPool` を使用）
+- 確認後にこのAPIを呼び、アプリ側の UsersTable にユーザーを登録する。
+  **パスワードはこのAPIには送らない**（Cognito側で保持・照合するため）。
 
 ## API パス
 

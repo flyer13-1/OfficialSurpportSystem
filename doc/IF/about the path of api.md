@@ -1,6 +1,6 @@
 index.html （Cognito authenticateUser。バックエンドAPIなし）
-regist.html /user （Cognito signUp/confirm後に呼ぶ）
 forgetPass.html （Cognito forgotPassword/confirmPassword。バックエンドAPIなし）
+regist.html /user/check (GET: 担当者名の空き確認・signUp前に呼ぶ), /user （Cognito signUp/confirm後に呼ぶ）
 
 userMenu.html /user/me (POST: 大会ID照会), /user/me (GET: プロフィール取得)
 mainMenu.html /entries

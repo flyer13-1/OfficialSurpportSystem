@@ -23,8 +23,8 @@ Globals:
       Variables:
         # ログイン認証は Cognito User Pool が担う（Lambda Authorizer が
         # ID トークンを JWKS で検証する。authorizer.mjs 参照）。
-        COGNITO_USER_POOL_ID: "ap-northeast-1_CieJXqC9H"
-        COGNITO_CLIENT_ID: "404fhgre43fnt3pbb7bfv2c33v"
+        COGNITO_USER_POOL_ID: "ap-northeast-1_tGblsfFgk"
+        COGNITO_CLIENT_ID: "6lh05mp69vfns3cfpj6hls4e7i"
 
         USERS_TABLE: !Ref UsersTable
         ORGANIZATIONS_TABLE: !Ref OrganizationsTable
@@ -70,6 +70,35 @@ Resources:
                   - dynamodb:BatchWriteItem
                   - dynamodb:BatchGetItem
                 Resource: "*" # 全テーブルを許可（後で絞り込み可）
+
+  # regist（POST /user）専用ロール。Users・Organizationsテーブルのみ許可
+  AuthLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "OfficialSupportSystem-${Env}-AuthLambdaRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: RegisterDynamoDBPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                Resource: !GetAtt OrganizationsTable.Arn
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:Scan
+                Resource: !GetAtt UsersTable.Arn
 
   # ===== Lambda Layer（共通処理）=====
   # dynamodb.js / generateId / responseヘルパーなどを格納
@@ -118,6 +147,22 @@ Resources:
   # （common.js の cognitoPool → authenticateUser）。Lambda Authorizer が
   # Cognito の ID トークンを検証する（authorizer.mjs）。
 
+  # GET /user/check — 担当者名の空き確認（認証不要・Cognito signUp前に呼ぶ）
+  CheckUsernameFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-CheckUsername"
+      CodeUri: functions/auth/
+      Handler: checkUsername.handler
+      Role: !GetAtt AuthLambdaRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /user/check
+            Method: GET
+
   # POST /user — ユーザー登録（認証不要・Cognito signUp/confirm後に呼ぶ）
   RegisterFunction:
     Type: AWS::Serverless::Function
@@ -125,7 +170,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-Register"
       CodeUri: functions/auth/
       Handler: register.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt AuthLambdaRole.Arn
       Events:
         Api:
           Type: Api
