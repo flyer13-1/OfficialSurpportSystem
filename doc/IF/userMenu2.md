@@ -57,3 +57,9 @@
   "isAdmin": false
 }
 ```
+
+## フロントの扱い
+
+- `circuit` は文字列で返る。フロント（conform）は sessionStorage の `circuit` に保存する。管理者画面は、`token` と `circuit` が sessionStorage に無ければ conform.html へ戻す（[admin/v2/01_permission.md](admin/v2/01_permission.md) の §3・§7）。
+- sessionStorage の `circuit` は画面のためだけのもの。管理者APIのサーキットの判定には使わず、サーバーが Users テーブルから調べる。
+- `isAdmin` は、Cognito の `leader` グループ所属かどうか。「管理者画面へ」ボタンの表示に使う。
