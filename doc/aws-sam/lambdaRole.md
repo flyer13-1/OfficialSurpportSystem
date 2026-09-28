@@ -9,8 +9,10 @@
 
 | ロール名               | 用途                                                       | 割り当て対象Function                    |
 | ---------------------- | ------------------------------------------------------------ | ---------------------------------------- |
-| LambdaExecutionRole    | 全Lambda共通ロール。DynamoDB全操作を許可                    | 左記2ロール以外の全Function |
+| LambdaExecutionRole    | 全Lambda共通ロール。DynamoDB全操作を許可                    | 左記の専用ロール以外の全Function |
 | AuthLambdaRole         | 登録前後で担当者名を扱う未認証系Function専用。最小権限ロール | RegisterFunction / CheckUsernameFunction |
+| ConformLambdaRole      | 大会ID照会専用。RaceTableの参照(Scan)のみ許可の最小権限ロール | ConformFunction（POST /user/me） |
+| ProfileLambdaRole      | プロフィール取得専用。UsersTableの参照(GetItem)のみ許可の最小権限ロール | ProfileFunction（GET /user/me） |
 
 ---
 
@@ -71,7 +73,58 @@ PutItemの`ConditionExpression`だけでは担当者名の重複を検出でき�
   担当者名としては使えないため、UsersTable参照には使わない
 - profile.mjs: `GetItem`のKeyを`{ username }`から`{ cognito_sub: sub }`に変更（`sub`はauthorizerのcontextから取得）
 
+---
+
+## 3. ConformLambdaRole（追加分）
+
+### 3.1 追加理由
+
+ConformFunction（`POST /user/me`、大会ID照会）はRaceTableから`today_id`が一致するレースを
+探して`raceId`を返すだけの処理で、書き込みや他テーブルへのアクセスは不要。
+LambdaExecutionRole（全テーブル全操作）を使う必要がないため、最小権限の専用ロールに分離した。
+
+### 3.2 付与権限
+
+| テーブル  | 許可アクション   | 理由                                                             |
+| --------- | ---------------- | ---------------------------------------------------------------- |
+| RaceTable | `dynamodb:Scan`  | `today_id`での照合（conform.mjsが`ScanCommand`＋`FilterExpression`を使用） |
+
+- 読み取り専用（Put/Update/Delete等は付与しない）。`Resource`はRaceTableのARNのみ
+- `ManagedPolicyArns`は`AWSLambdaBasicExecutionRole`のみ（他ロールと同一）
+
+### 3.3 定義箇所
+
+- `backend-sam/template.yaml`の`ConformLambdaRole`
+- 割り当て: `ConformFunction.Properties.Role: !GetAtt ConformLambdaRole.Arn`
+
+---
+
+## 4. ProfileLambdaRole（追加分）
+
+### 4.1 追加理由
+
+ProfileFunction（`GET /user/me`）はUsersTableを`cognito_sub`で`GetItem`するだけの処理。
+全テーブル全操作のLambdaExecutionRoleを使う必要がないため、最小権限の専用ロールに分離した。
+既存の`AuthLambdaRole`はUsersTable権限が`PutItem`/`Scan`のみで`GetItem`が無く流用できない。
+また`AuthLambdaRole`に`GetItem`を足す案もあったが、同ロールは認証なしで叩ける`POST /user`・
+`GET /user/check`が使うロールのため、認証が必要なプロフィール取得のために未認証側の権限を
+広げない方針とした。
+
+### 4.2 付与権限
+
+| テーブル   | 許可アクション    | 理由                                          |
+| ---------- | ----------------- | --------------------------------------------- |
+| UsersTable | `dynamodb:GetItem` | `cognito_sub`でプロフィール（担当者名・所属）を取得 |
+
+- 読み取り専用。`Resource`はUsersTableのARNのみ
+- `ManagedPolicyArns`は`AWSLambdaBasicExecutionRole`のみ（他ロールと同一）
+
+### 4.3 定義箇所
+
+- `backend-sam/template.yaml`の`ProfileLambdaRole`
+- 割り当て: `ProfileFunction.Properties.Role: !GetAtt ProfileLambdaRole.Arn`
+
 **保留物**
 
-- 他のFunction（ConformFunction / ProfileFunction等）についても、アクセス先テーブルを絞った専用ロールへの分割は未対応（現状はLambdaExecutionRoleの全権限を使用）。今後の権限最小化タスクとして検討
+- 上記以外のFunctionについても、アクセス先テーブルを絞った専用ロールへの分割は未対応（現状はLambdaExecutionRoleを使用）。今後の権限最小化タスクとして検討
 - authorizer.mjsの`username`（`cognito:username`クレーム）がメールアドレスになった影響で、これを担当者名だと思って使っている11個のFunction（autoCreate / handCreate / updatePut / retireCreate / retireGet / updateGet / showAll / init / bulkEntry / bulkStartDriver、および直したprofile.mjs以外）が、記録者名・担当割り当て等をメールアドレスで保存/検索してしまう状態のまま。今回は対応を見送り、別issueとして扱う

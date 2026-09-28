@@ -100,6 +100,54 @@ Resources:
                   - dynamodb:Scan
                 Resource: !GetAtt UsersTable.Arn
 
+  # conform（POST /user/me・大会ID照会）専用ロール。RaceTableの参照(Scan)のみ許可
+  ConformLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "OfficialSupportSystem-${Env}-ConformLambdaRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ConformRaceReadPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:Scan
+                Resource: !GetAtt RaceTable.Arn
+
+  # profile（GET /user/me・プロフィール取得）専用ロール。UsersTableの参照(GetItem)のみ許可
+  ProfileLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "OfficialSupportSystem-${Env}-ProfileLambdaRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ProfileUserReadPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                Resource: !GetAtt UsersTable.Arn
+
   # ===== Lambda Layer（共通処理）=====
   # dynamodb.js / generateId / responseヘルパーなどを格納
   CommonLayer:
@@ -186,7 +234,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-Conform"
       CodeUri: functions/auth/
       Handler: conform.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt ConformLambdaRole.Arn
       Events:
         Api:
           Type: Api
@@ -204,7 +252,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-Profile"
       CodeUri: functions/auth/
       Handler: profile.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt ProfileLambdaRole.Arn
       Events:
         Api:
           Type: Api
