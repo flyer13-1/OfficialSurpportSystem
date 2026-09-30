@@ -1,0 +1,15 @@
+{
+  "name": "oss-seed-node",
+  "version": "1.0.0",
+  "description": "aws CLI が無い環境用の DynamoDB シード（Node + AWS SDK）",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "seed": "node seed.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/lib-dynamodb": "^3.0.0",
+    "bcryptjs": "^2.4.3"
+  }
+}
