@@ -55,7 +55,7 @@ CREATE TABLE race (
     id       INT          NOT NULL AUTO_INCREMENT,
     title    VARCHAR(200) NOT NULL UNIQUE,
     today_id VARCHAR(50)  NOT NULL UNIQUE, --大会ID（conform1 POST で照合）
-    race_date DATE         NOT NULL,         --レース開催日
+    finish_date DATE         NOT NULL,         --レース終了日
     organization_id  INT          NOT NULL,         --サーキット番号（organizations.circuit）
     PRIMARY KEY (id),
     FOREIGN KEY (organization_id) REFERENCES organizations(circuit),

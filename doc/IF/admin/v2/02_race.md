@@ -1,6 +1,6 @@
 # 02 race（項目・登録・確認の表示・変更・終了後の表示）
 
-状態: **ドラフト（レビュー待ち）**
+状態: **確定（2026-09-30）**
 
 race の項目と、管理者画面での登録・一覧・変更、終了後の見え方を、フロントとバックエンドを合わせて定める。権限とエラーの共通ルールは [01_permission.md](01_permission.md)（確定）に従う。
 
@@ -159,9 +159,10 @@ race に属するデータ（entry / start_driver / pit_assignment）と race �
 
 ### 4.3 API: `PUT /race`
 
+`raceId` はボディに含めず、`X-Race-Id` ヘッダーで送る（01章 R10）。
+
 ```json
 {
-  "raceId": "kQ3v9Zp2mT8xLw1nYb7RcA",
   "title": "2026 ... FUJI GT 300km RACE (改)",
   "finishDate": "2026-08-31"
 }
@@ -199,6 +200,7 @@ race に属するデータ（entry / start_driver / pit_assignment）と race �
 - [SQLcode.sql](../../../database/SQLcode.sql): 項目の整合
 - 既存の race（例 `2026test_race`）は `raceId` が推測しやすいので、作り直す
 - サーキット名の対応表（1〜7）は conform.js と admin.js で使うため、common.js に置く
+- `DELETE /race`（race 削除。方針は03章 §5）は、`raceId` をパスパラメータに含めず、`X-Race-Id` ヘッダーで送る形にする（01章 R10）
 
 ## 7. 未決事項
 
