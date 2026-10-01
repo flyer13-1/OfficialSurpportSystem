@@ -1,5 +1,3 @@
-git
-
 # DynamoDB テーブル設計書
 
 `SQLcode.sql`（リレーショナル設計＝正）を DynamoDB に落とし込んだ設計。
@@ -9,14 +7,15 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 ## 設計方針（前提となる決定事項）
 
 - **AUTO_INCREMENT は使わない**（DynamoDB に連番機能が無いため）。代理キーは以下で代替する。
-  - 自然キーがある → それをキーにする（users=`username`、pit_log=本来 (race_id,car_num,pit_num)）
+  - 自然キーがある → それをキーにする（users=`cognito_sub`、pit_log=本来 (race_id,car_num,pit_num)）
   - 追記ログで自然順序キーが無い → **ULID**（時刻プレフィックス付き＝文字列ソートで時系列順になる）
+  - **race=`id` は暗号論的乱数**（下記）
 - **ULID を使うテーブル**: `pit_log` / `pit_log_history` / `outpost_log`
   - ULID は `dynamodb.js` の `generateId()` が生成（固定幅 base32 の時刻 + ランダム）。
   - ULID は「保存順・一意キー・おおまかな時系列」用。**画面の「ピットイン順」など真の時系列は `in_time`（記録された実時刻）でソートする**（ULID は保存時刻であり実ピット時刻ではないため）。
-- **race の識別子は2本立て**
-  - `id`: 非秘密の識別子。レース登録（管理者・手動）時に一意な文字列を付与（例 `2026fuji_st`）。全 API の `race_id` はこれを使う。
-  - `today_id`: **秘密（大会ID・パスワード相当）**。conform（`POST /user/me`）の照合でのみ使用。クエリパラメータ等に乗せない。
+- **race の識別子は2本立て**（詳細は [admin/v2/01_permission.md](../IF/admin/v2/01_permission.md) §1）
+  - `id`（= `raceId`）: **トークン相当**。todayId の照合を通過したクライアントに渡され、以降の全 API の `race_id` に使う。有効期限・失効の仕組みが無いため、**サーバーが暗号論的乱数（`crypto`）で生成**し、予測不可能・全体で一意にする（16バイト → URL安全なBase64で22文字）。**管理者にも画面上は見せない。** 送信時は URL やボディではなく `X-Race-Id` ヘッダーに乗せる（01章 R10）。
+  - `today_id`: **パスワード相当（大会ID）**。当日配布し、conform（`POST /user/me`）の照合でのみ使用する。こちらもサーバーが暗号論的乱数で生成（紛らわしい文字を除いた英数字17文字）。
 - 日時は ISO8601 文字列（`+09:00` 付き）で保持（SQL の DATETIME/TIMESTAMP 相当）。
 - 整合性制約（UNIQUE / FK / CHECK）は DynamoDB では効かないため**アプリで担保**する。
 - 課金は全テーブル `PAY_PER_REQUEST`。物理テーブル名は `OfficialSupportSystem-${Env}-<Name>`。
@@ -39,12 +38,14 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 ## 2. users（ログイン情報）
 
 - PK: `cognito_sub`（SQL の代理キー `id` は廃止。一意となるこれを参照）
+- GSI **UsernameIndex**: HASH=`username`（Projection: KEYS_ONLY で足りる）
+  - 用途: pit_assignment 登録時の「その `username` が登録済み利用者か」の確認（[admin/v2/03_race_data.md](../IF/admin/v2/03_race_data.md) §4.2）。PK が `cognito_sub` のため、`username` では引けないので追加する。
 
-| 属性            | 型  | キー | NULL | SQL対応         | 備考                                             |
-| --------------- | --- | ---- | ---- | --------------- | ------------------------------------------------ |
-| cognito_sub     | S   | pk   | NO   | cognito_sub     |
-| username        | S   |      | NO   | username        | ひらがな・カタカナ・漢字 4〜20文字（アプリ検証） |
-| organization_id | N   |      | NO   | organization_id | organizations.circuit を参照                     |
+| 属性            | 型  | キー   | NULL | SQL対応         | 備考                                             |
+| --------------- | --- | ------ | ---- | --------------- | ------------------------------------------------ |
+| cognito_sub     | S   | PK     | NO   | cognito_sub     |
+| username        | S   | GSI-PK | NO   | username        | ひらがな・カタカナ・漢字 3〜20文字（アプリ検証） |
+| organization_id | N   |        | NO   | organization_id | organizations.circuit を参照                     |
 | created_at      | S   |      | NO   | created_at      | ISO8601                                          |
 | updated_at      | S   |      | NO   | updated_at      | ISO8601                                          |
 
@@ -53,15 +54,23 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 ## 3. race（レースタイトル）
 
 - PK: `id`
+- GSI **OrganizationIndex**: HASH=`organization_id`, RANGE=`finish_date`（Projection: **ALL**）
+  - 用途: 管理者画面の一覧（自分のサーキットのレースを終了日順に取得）と、同一サーキット内の `title` 重複確認。
+- GSI **TodayIdIndex**: HASH=`today_id`
+  - 用途: conform の大会ID照合（現状の全件 Scan をやめる）と、`today_id` の重複確認。
 
-| 属性            | 型  | キー | NULL | SQL対応         | 備考                                                                               |
-| --------------- | --- | ---- | ---- | --------------- | ---------------------------------------------------------------------------------- |
-| id              | S   | PK   | NO   | id              | **非秘密**の識別子。登録時に管理者が一意文字列を付与（AUTO_INCREMENT代替）         |
-| title           | S   |      | NO   | title           | UNIQUE はアプリで担保                                                              |
-| today_id        | S   |      | NO   | today_id        | **秘密（大会ID）**。半角英数15文字以上。conform でのみ照合。`race_id` には使わない |
-| organization_id | N   |      | NO   | organization_id | organizations.circuit を参照                                                       |
+| 属性            | 型  | キー   | NULL | SQL対応         | 備考                                                                                                           |
+| --------------- | --- | ------ | ---- | --------------- | ---------------------------------------------------------------------------------------------------------------- |
+| id              | S   | PK     | NO   | id              | **トークン相当**。サーバーが暗号論的乱数で生成（22文字）。AUTO_INCREMENT代替。画面には表示しない                |
+| title           | S   |        | NO   | title           | **同一サーキット内**でのみ重複不可（他サーキットとは重複可）。アプリで担保                                     |
+| today_id        | S   | GSI-PK | NO   | today_id        | **パスワード相当（大会ID）**。サーバーが生成（17文字）。conform でのみ照合。`race_id` には使わない             |
+| organization_id | N   | GSI-PK | NO   | organization_id | organizations.circuit を参照。登録した管理者のサーキットをサーバーが付ける。変更不可                           |
+| finish_date     | S   | GSI-SK | NO   | finish_date     | レース終了日（JST の `YYYY-MM-DD`）。**この日の翌日 0:00（JST）以降が「終了済み」**。DynamoDB に日付型が無いため文字列 |
+| created_at      | S   |        | NO   | —               | 登録日時（ISO8601）。ログの観点から保持                                                                        |
+| created_by      | S   |        | NO   | —               | 登録した管理者の `cognito_sub`。ログの観点から保持                                                             |
 
-> 変更点: conform.mjs は `race.id` を返す（現状通り）。`id` を String の手動採番にすることでこれが成立する。
+> `finish_date` を `YYYY-MM-DD` の文字列にすると、大小比較がそのまま日付順になるため、GSI の RANGE キーとしてそのまま使える。
+> 「終了済みか」は保存せず、`GET /race` のたびに Lambda が `finish_date` と現在時刻（JST）を比べて算出する（[admin/v2/02_race.md](../IF/admin/v2/02_race.md) §3）。
 
 ---
 
@@ -76,8 +85,8 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 | class_name         | S   |      | YES  | class_name       | クラス名                                      |
 | entrant_name       | S   |      | YES  | entrant_name     | エントラント名                                |
 | vehicle_name       | S   |      | YES  | vehicle_name     | 参加車両名                                    |
-| maintenance_area   | S   |      | YES  | maintenance_area | 作業エリア（"1〜45" または範囲文字列 "5-10"） |
-| pit_garage         | S   |      | YES  | pit_garage       | ピットガレージ割り当て                        |
+| maintenance_area   | N   |      | NO   | maintenance_area | Pit前作業エリア。**車が使う場所は1箇所だけなので数値**（pit_assignment は範囲を持つため文字列。型が異なる） |
+| pit_garage         | S   |      | NO   | pit_garage       | ピットガレージ番号。`"T1"` のようにテントがあるため文字列 |
 | driver_a           | S   |      | NO   | driver_a         | 代表ドライバ（必須）                          |
 | driver_b〜driver_f | S   |      | YES  | driver_b〜f      | 最大6名。未登録は欠落（null）                 |
 
@@ -105,7 +114,7 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 | race_id                   | S   | PK     | NO   | race_id          |                                                                                                     |
 | username#maintenance_area | S   | SK     | NO   | —（合成）        | (race_id,username,maintenance_area) の複合一意を表すための連結キー。DynamoDB の制約上やむを得ず追加 |
 | username                  | S   | GSI-PK | NO   | username         | 担当監視員                                                                                          |
-| maintenance_area          | S   | GSI-SK | NO   | maintenance_area | 担当作業エリア                                                                                      |
+| maintenance_area          | S   | GSI-SK | NO   | maintenance_area | 担当作業エリアの**範囲**（`"5-10"`。1箇所なら `"7"`）。範囲を表すため文字列。entry 側は1箇所なので数値で、型が異なる |
 
 > init.mjs は UsernameIndex を username で Query し race_id でフィルタしている（現状通り）。
 
@@ -212,11 +221,15 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 
 1. **pit_log**: `CarNumIndex` GSI を**削除**（race 非スコープ・未使用）。
 2. **outpost_log**: `UsernameIndex` に RANGE=`created_at` を追加。
-3. **users**: `admin` 属性を register 時に書き込む（テーブル定義変更は不要＝スキーマレス）。
-4. **race**: `id` を「管理者が手動採番する非秘密 String」と明確化（型・キーは現状の S PK のまま）。
-5. action_type は大文字（UPDATE/DELETE）に統一し、**INSERT は記録しない**。
-6. pit_log_history は **項目単位（1項目=1レコード）** で差分のみ記録（field_name='multiple' 廃止）。
-7. pit_log の time は **A/B/C の2-time パターン検証**を入れる（out_time 単独は不可）。
+3. **race**: `finish_date` / `created_at` / `created_by` を追加。GSI `OrganizationIndex`（HASH `organization_id` / RANGE `finish_date` / Projection ALL）と `TodayIdIndex`（HASH `today_id`）を**新設**。
+4. **race**: `id` は「サーバーが暗号論的乱数で生成する、トークン相当の String」とする（管理者の手動採番をやめる）。既存の race（例 `2026test_race`）は推測しやすいので作り直す。
+5. **users**: GSI `UsernameIndex`（HASH `username`）を**新設**（pit_assignment の検証用）。
+6. **entry**: `maintenance_area` を S → **N** に変更（車の作業エリアは1箇所のみ）。`start_driver` 列は持たない（実体は start_driver テーブル）。
+7. action_type は大文字（UPDATE/DELETE）に統一し、**INSERT は記録しない**。
+8. pit_log_history は **項目単位（1項目=1レコード）** で差分のみ記録（field_name='multiple' 廃止）。
+9. pit_log の time は **A/B/C の2-time パターン検証**を入れる（out_time 単独は不可）。
+
+> 管理者判定（leader）は **Cognito のグループ**で行うため、`users` に `admin` 属性は持たせない（[admin/v2/01_permission.md](../IF/admin/v2/01_permission.md) R3）。
 
 ## SQLcode.sql 側にも追従が必要な点
 

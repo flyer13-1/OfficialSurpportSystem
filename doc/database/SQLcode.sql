@@ -21,6 +21,12 @@
 -- ・outpost_log テーブルを新規追加（showAll API の act=1 アクセスログ）
 -- ・users.password_hash を廃止。ログイン認証を Cognito User Pool に移行し、
 --   代わりに Cognito の userSub を持つ cognito_sub を追加（UNIQUE）
+-- ・users.username の最小文字数を 4→3 に変更（regist 画面の minlength に合わせる）
+-- ・race.id を AUTO_INCREMENT から「サーバー生成の予測不可能な文字列」に変更。
+--   race に finish_date / created_at / created_by を追加。
+--   title の UNIQUE を (organization_id, title) の複合に変更（サーキット内のみ重複不可）
+-- ・entry.maintenance_area を VARCHAR から INT に変更（車の作業エリアは1箇所のみ）。
+--   entry.start_driver は持たない（実体は start_driver テーブル側で管理）
 -----------------
 
 
@@ -36,14 +42,14 @@ CREATE TABLE organizations (
 
 CREATE TABLE users (
     cognito_sub     CHAR(36)     NOT NULL UNIQUE,  --Cognito の userSub（認証はCognito側で完結）
-    username        VARCHAR(20)  NOT NULL UNIQUE,  --担当者名（ひらがな・カタカナ・漢字 4〜20文字）
+    username        VARCHAR(20)  NOT NULL UNIQUE,  --担当者名（ひらがな・カタカナ・漢字 3〜20文字）
     organization_id INT          NOT NULL,
     created_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (cognito_sub),
     FOREIGN KEY (organization_id) REFERENCES organizations(circuit),
     CONSTRAINT chk_username CHECK (
-        CHAR_LENGTH(username) BETWEEN 4 AND 20
+        CHAR_LENGTH(username) BETWEEN 3 AND 20
         AND username REGEXP '^[ぁ-んァ-ヶ一-龯]+$'
     )
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -52,13 +58,17 @@ CREATE TABLE users (
 -- レースタイトル表
 
 CREATE TABLE race (
-    id       INT          NOT NULL AUTO_INCREMENT,
-    title    VARCHAR(200) NOT NULL UNIQUE,
-    today_id VARCHAR(50)  NOT NULL UNIQUE, --大会ID（conform1 POST で照合）
-    finish_date DATE         NOT NULL,         --レース終了日
-    organization_id  INT          NOT NULL,         --サーキット番号（organizations.circuit）
+    id              VARCHAR(32)  NOT NULL,         --トークン相当。サーバーが暗号論的乱数で生成（22文字）。画面には出さない
+    title           VARCHAR(200) NOT NULL,
+    today_id        VARCHAR(50)  NOT NULL UNIQUE,  --大会ID（conform1 POST で照合）。当日配布するパスワード相当
+    finish_date     DATE         NOT NULL,         --レース終了日。翌日 0:00（JST）以降が「終了済み」
+    organization_id INT          NOT NULL,         --サーキット番号（organizations.circuit）
+    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP, --登録日時（ログ用）
+    created_by      CHAR(36)     NOT NULL,         --登録した管理者（users.cognito_sub）
     PRIMARY KEY (id),
+    UNIQUE (organization_id, title),               --タイトルの重複禁止は同一サーキット内のみ
     FOREIGN KEY (organization_id) REFERENCES organizations(circuit),
+    FOREIGN KEY (created_by)      REFERENCES users(cognito_sub),
     CONSTRAINT chk_today_id CHECK (
         CHAR_LENGTH(today_id) >= 15
         AND today_id REGEXP '^[A-Za-z0-9]+$'
@@ -69,13 +79,13 @@ CREATE TABLE race (
 -- エントリーリスト
 
 CREATE TABLE entry (
-    race_id          INT          NOT NULL,
+    race_id          VARCHAR(32)  NOT NULL,
     car_num          INT          NOT NULL,
     class_name       VARCHAR(50),            --クラス名
     entrant_name     VARCHAR(100),           --エントラント名称
     vehicle_name     VARCHAR(100),           --参加車両名称
-    maintenance_area VARCHAR(50),            --作業エリア（1〜45 または文字列）
-    pit_garage       VARCHAR(20),            --ピットガレージ割り当て（1〜45 または "テント"）
+    maintenance_area INT,                    --Pit前作業エリア。車が使う場所は1箇所のみ（pit_assignment は範囲なので文字列）
+    pit_garage       VARCHAR(20),            --ピットガレージ番号（"T1" のようなテント表記があるため文字列）
     driver_a         VARCHAR(50)  NOT NULL,
     driver_b         VARCHAR(50),
     driver_c         VARCHAR(50),
@@ -90,7 +100,7 @@ CREATE TABLE entry (
 -- スタートドライバー表
 
 CREATE TABLE start_driver (
-    race_id   INT         NOT NULL,
+    race_id   VARCHAR(32) NOT NULL,
     car_num   INT         NOT NULL,
     driver    VARCHAR(50) NOT NULL,
     PRIMARY KEY (race_id, car_num),
@@ -101,9 +111,9 @@ CREATE TABLE start_driver (
 -- ユーザの監視割り当て表
 
 CREATE TABLE pit_assignment (
-    race_id          INT         NOT NULL,
+    race_id          VARCHAR(32) NOT NULL,
     username         VARCHAR(20) NOT NULL,   --担当監視員（users.username）
-    maintenance_area VARCHAR(50) NOT NULL,   --担当作業エリア（entry.maintenance_area と整合）
+    maintenance_area VARCHAR(50) NOT NULL,   --担当作業エリアの範囲（"5-10" 形式。1箇所なら "7"）。entry 側は1箇所なので INT で型が異なる
     PRIMARY KEY (race_id, username, maintenance_area),
     FOREIGN KEY (race_id)  REFERENCES race(id),
     FOREIGN KEY (username) REFERENCES users(username)
@@ -114,7 +124,7 @@ CREATE TABLE pit_assignment (
 
 CREATE TABLE pit_log (
     id             INT         NOT NULL AUTO_INCREMENT,
-    race_id        INT         NOT NULL,
+    race_id        VARCHAR(32) NOT NULL,
     car_num        INT         NOT NULL,
     username       VARCHAR(20) NOT NULL,               --記録担当者名（users.username）
     pit_num        INT         NOT NULL,               --ピット回数（何回目か）
@@ -156,7 +166,7 @@ CREATE TABLE pit_log_history (
 -- リタイア記録
 
 CREATE TABLE retire (
-    race_id    INT     NOT NULL,
+    race_id    VARCHAR(32) NOT NULL,
     car_num    INT     NOT NULL,
     is_retired BOOLEAN NOT NULL DEFAULT FALSE, --リタイアフラグ（TRUE=リタイア FALSE=継続）
     reason     TEXT,                           --リタイア理由（selection=2 の reason）
@@ -168,7 +178,7 @@ CREATE TABLE retire (
 
 CREATE TABLE outpost_log (
     id          INT         NOT NULL AUTO_INCREMENT,
-    race_id     INT         NOT NULL,               --対象レースID
+    race_id     VARCHAR(32) NOT NULL,               --対象レースID
     username    VARCHAR(20) NOT NULL,               --アクセスした担当者名（JWTから取得）
     created_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
