@@ -180,6 +180,7 @@ CREATE TABLE outpost_log (
     id          INT         NOT NULL AUTO_INCREMENT,
     race_id     VARCHAR(32) NOT NULL,               --対象レースID
     username    VARCHAR(20) NOT NULL,               --アクセスした担当者名（JWTから取得）
+    is_leader   BOOLEAN     NOT NULL DEFAULT FALSE, --leaderだったか（サーバー判定。管理者画面からの取得かの目安）
     created_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     FOREIGN KEY (race_id) REFERENCES race(id),

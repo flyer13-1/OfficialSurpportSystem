@@ -208,12 +208,13 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 - PK: `race_id` / SK: `id`（ULID）
 - GSI **UsernameIndex**: HASH=`username`, RANGE=`created_at`（担当者別に時系列で引けるよう RANGE を追加）
 
-| 属性       | 型  | キー   | NULL | SQL対応    | 備考                               |
-| ---------- | --- | ------ | ---- | ---------- | ---------------------------------- |
-| id         | S   | SK     | NO   | id         | ULID                               |
-| race_id    | S   | PK     | NO   | race_id    |                                    |
-| username   | S   | GSI-PK | NO   | username   | アクセスした担当者（JWT から取得） |
-| created_at | S   | GSI-SK | NO   | created_at | ISO8601                            |
+| 属性       | 型   | キー   | NULL | SQL対応    | 備考                                                                      |
+| ---------- | ---- | ------ | ---- | ---------- | --------------------------------------------------------------------------- |
+| id         | S    | SK     | NO   | id         | ULID                                                                      |
+| race_id    | S    | PK     | NO   | race_id    |                                                                           |
+| username   | S    | GSI-PK | NO   | username   | アクセスした担当者（JWT から取得）                                        |
+| is_leader  | BOOL |        | NO   | is_leader  | その人が leader だったか。**サーバーが判定した値**を記録する（04章 §6.1） |
+| created_at | S    | GSI-SK | NO   | created_at | ISO8601                                                                   |
 
 ---
 
