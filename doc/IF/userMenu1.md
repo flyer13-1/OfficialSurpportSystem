@@ -62,9 +62,11 @@
 ```json
 {
   "msg": "",
-  "raceId": "2026fuji_st" // 以降のAPIに渡す。フロントは sessionStorage に保存する
+  "raceToken": "eyJyYWNlSWQiOi...7f2a9c4e..." // 以降のAPIに渡す。フロントは sessionStorage に保存する
 }
 ```
+
+- `raceId` はもう返さない。署名付きの `raceToken` を返し、以降は常に `X-Race-Id` ヘッダーで送る（[raceIdToken.md](raceIdToken.md) §3・§4、01章 R10）。
 
 エラー時:
 

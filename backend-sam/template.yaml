@@ -26,6 +26,9 @@ Globals:
         COGNITO_USER_POOL_ID: "ap-northeast-1_tGblsfFgk"
         COGNITO_CLIENT_ID: "6lh05mp69vfns3cfpj6hls4e7i"
 
+        # raceId トークンの署名鍵（値は SSM に置く。ここは名前だけ。doc/IF/raceIdToken.md §6）
+        RACE_TOKEN_SECRET_PARAM: !Sub "/OfficialSupportSystem/dev/race-token-secret"
+
         USERS_TABLE: !Ref UsersTable
         ORGANIZATIONS_TABLE: !Ref OrganizationsTable
         RACE_TABLE: !Ref RaceTable
@@ -100,7 +103,8 @@ Resources:
                   - dynamodb:Scan
                 Resource: !GetAtt UsersTable.Arn
 
-  # conform（POST /user/me・大会ID照会）専用ロール。RaceTableの参照(Scan)のみ許可
+  # conform（POST /user/me・大会ID照会）専用ロール。RaceTableの参照(Scan)と、
+  # raceId トークン署名鍵（SSM）の読み取りを許可（doc/IF/raceIdToken.md §6）
   ConformLambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -123,6 +127,14 @@ Resources:
                 Action:
                   - dynamodb:Scan
                 Resource: !GetAtt RaceTable.Arn
+        - PolicyName: RaceTokenSecretReadPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/OfficialSupportSystem/dev/race-token-secret"
 
   # profile（GET /user/me・プロフィール取得）専用ロール。UsersTableの参照(GetItem)のみ許可
   ProfileLambdaRole:
@@ -167,7 +179,7 @@ Resources:
       # CORS設定: ブラウザからのクロスオリジンリクエストを許可
       Cors:
         AllowOrigin: "'*'"
-        AllowHeaders: "'Content-Type,Authorization'"
+        AllowHeaders: "'Content-Type,Authorization,X-Race-Id'"
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
       # 認証設定
       # DefaultAuthorizer は指定しない＝既定は認証なし。
