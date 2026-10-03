@@ -2,44 +2,53 @@ import { GetCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient, Tables, response } from "/opt/nodejs/dynamodb.js";
 
 /**
- * 検証済みリクエストから username を解決する。
- * Authorizer が Cognito ID トークンを検証した上で requestContext.authorizer
- * にセットする（authorizer.mjs 参照）。
- */
-export function resolveUsername(event) {
-  return event.requestContext?.authorizer?.username || null;
-}
-
-/**
- * 管理者APIの認可。ログイン認証（Cognito）を通過した上で leader グループ所属を確認する。
- * 所属サーキット(organization_id)も併せて返す（管理者APIでのスコープ絞り込み用）。
- * 成功時: { username, organizationId }
- * 失敗時: { error: <response object> }（401 未認証 / 403 admin でない）
+ * 管理者APIの認可（doc/IF/admin/v2/01_permission.md §4）。
+ * ログイン認証（Cognito）を通過した上で leader グループ所属を確認し、
+ * UsersTable を cognito_sub で引いて実在確認と所属サーキットの取得を行う。
  *
- * 非adminの試行はログに残す（DBログ化は別タスク）。
+ * 成功時: { username, sub, circuit }（circuit は users.organization_id、数値）
+ * 失敗時: { error: <response object> }（401 未認証 / 403 admin でない・未登録。
+ *          msg に加えて reason も返す。01章§6）
+ *
+ * 非adminの試行・未登録ユーザーの試行はログに残す（DBログ化は別タスク）。
  */
 export async function requireAdmin(event) {
-  const username = resolveUsername(event);
-  if (!username) {
+  const auth = event.requestContext?.authorizer;
+  const sub = auth?.sub;
+  const username = auth?.username;
+
+  // §4-1: authorizer.sub が無ければ未ログイン扱い
+  if (!sub) {
     return { error: response(401, { msg: "認証が必要です" }) };
   }
 
   // 管理者判定は Cognito の leader グループで行う（Authorizer が
   // cognito:groups から算出して context.isAdmin にセット。文字列で届く）。
-  const auth = event.requestContext?.authorizer;
   const isAdmin = auth?.isAdmin === "true" || auth?.isAdmin === true;
   if (!isAdmin) {
-    console.warn(`[admin] forbidden access attempt by username=${username}`);
-    return { error: response(403, { msg: "管理者権限がありません" }) };
+    console.warn(
+      `[admin] forbidden (not_admin): sub=${sub} username=${username} path=${event.path}`
+    );
+    return {
+      error: response(403, { msg: "管理者権限がありません", reason: "not_admin" }),
+    };
   }
 
-  // 所属サーキット(organization_id)は引き続き UsersTable から取得する。
+  // §4-3: UsersTable の PK は cognito_sub（username ではない）。
   const userResult = await docClient.send(
-    new GetCommand({ TableName: Tables.users, Key: { username } })
+    new GetCommand({ TableName: Tables.users, Key: { cognito_sub: sub } })
   );
   if (!userResult.Item) {
-    return { error: response(403, { msg: "ユーザーが見つかりません" }) };
+    console.warn(
+      `[admin] forbidden (user_not_found): sub=${sub} username=${username} path=${event.path}`
+    );
+    return {
+      error: response(403, {
+        msg:    "ユーザーが見つかりません",
+        reason: "user_not_found",
+      }),
+    };
   }
 
-  return { username, organizationId: userResult.Item.organization_id };
+  return { username, sub, circuit: userResult.Item.organization_id };
 }
