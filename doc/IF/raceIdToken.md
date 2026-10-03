@@ -4,7 +4,7 @@
 
 一般利用者向けAPIが `race_id` を信用する根拠を、「値が推測しにくいこと」から「**サーバーの署名があること**」に変えるための設計。
 
-- 対象は **race に属する全API**（conform / pitlog の入力・参照・出力 / 管理者画面の各API）。
+- 対象は **一般利用者向けAPI**（conform / pitlog の入力・参照・出力 / 一般向け start_driver 登録）。**管理者向けAPIは対象外**（§9）——`requireAdmin` とサーキット照合で既に安全性を担保しており、`raceId` の秘匿性に頼っていないため。
 - 権限の共通ルールは [admin/v2/01_permission.md](admin/v2/01_permission.md) に従う。本書は、そこで「将来の拡張候補」としていた仕組み（§9）を具体化したもの。
 
 ## 1. 今の方式と、その弱点
@@ -81,7 +81,7 @@ eyJyYWNlSWQiOiJrUTN2Li4uIn0.7f2a9c4e8b1d...
 
 ## 5. 検証（各API）
 
-共通処理を1つ作り、`race_id` を使う全APIが最初に呼ぶ（`requireAdmin` と同じ置き場所・同じ使い方）。
+共通処理を1つ作り、`race_id` を使う**一般向けAPI**が最初に呼ぶ（`requireAdmin` と同じ置き場所・同じ使い方。ただし呼ぶのは一般向けAPIだけで、管理者向けAPIは呼ばない。§9参照）。
 
 ```
 ① X-Race-Id ヘッダーの文字列を「.」で分ける → 中身 と 署名
@@ -99,11 +99,12 @@ eyJyYWNlSWQiOiJrUTN2Li4uIn0.7f2a9c4e8b1d...
 
 ### 既存の照合との関係
 
-トークンが通った後の処理は、01章 §5 のまま変わらない。
+管理者向けAPIはこの設計の対象外であり、今まで通り `requireAdmin` ＋ サーキット照合（01章§5.1）＋生の `raceId` による race 取得のまま変わらない。
+
+一般向けAPIは、トークン検証の後にやることも01章§5.4のまま変わらない。
 
 | 操作 | トークン検証の後にやること |
 |---|---|
-| 管理者向けAPI | `requireAdmin` ＋ サーキット照合（§5.1） |
 | 一般向けAPI | race の存在確認（§5.4）。**終了判定は `exp` で済むため、DBアクセスを1回減らせる**（§7） |
 
 ## 6. 秘密鍵の管理
@@ -189,7 +190,7 @@ eyJyYWNlSWQiOiJrUTN2Li4uIn0.7f2a9c4e8b1d...
 | 1 | 秘密鍵を SSM に作成する（§6） |
 | 2 | 共通処理（発行・検証）を `layers/common/` に実装する |
 | 3 | `conform.mjs` を、トークンだけを返す形に実装する（生の `raceId` は返さない） |
-| 4 | pitlog系7本・entry系3本・race系・admin系の各Lambdaを、トークン検証に置き換える（生の `raceId` の受付コードは作らない） |
+| 4 | pitlog系7本・entry系の一般向けLambda（`init` / `POST /entries/start-driver`）を、トークン検証に置き換える（生の `raceId` の受付コードは作らない）。**管理者向けAPI（race系・admin系）は対象外**（§9参照） |
 | 5 | フロント全画面をトークン送信に合わせて実装する（§9） |
 | 6 | 一括でデプロイし、全画面を通しで動作確認する |
 
@@ -203,10 +204,12 @@ eyJyYWNlSWQiOiJrUTN2Li4uIn0.7f2a9c4e8b1d...
 | 共通処理 | `layers/common/nodejs/` | 発行する関数・検証する関数を新設 |
 | バックエンド | `conform.mjs` | 発行してレスポンスに載せる |
 | バックエンド | pitlog 系7本（`autoCreate` / `handCreate` / `retireCreate` / `retireGet` / `showAll` / `updateGet` / `updatePut`） | `race_id` を直接読む箇所を、検証して取り出す形に置換 |
-| バックエンド | entry 系3本（`init` / `bulkEntry` / `bulkStartDriver`）＋ race 系・admin 系 | 同上 |
+| バックエンド | 一般向け entry 系2本（`init` / `POST /entries/start-driver`。後者は03章§3.6で新設） | 同上 |
 | フロント | `conform.js` | 受け取った値を sessionStorage に保存 |
 | フロント | `common.js`（`requireAuth`） | 保存した値を返す |
-| フロント | `enterAuto` / `enterHand` / `enterRetire` / `enterUpdate` / `showAll` / `outPosts` / `admin` | 送信する値の差し替え |
+| フロント | `enterAuto` / `enterHand` / `enterRetire` / `enterUpdate` / `showAll` / `outPosts` / 一般向け start_driver 画面（03章§3.6） | 送信する値の差し替え |
+
+> **管理者向けAPI（`admin.js` / race系・entry系bulk・pit_assignment系 など）はこの設計の対象外。** `requireAdmin`（Cognito JWTのleader判定）＋毎回のサーキット照合（01章§5.1）で既に安全性を担保しており、`raceId` の秘匿性に頼っていないため。管理者側は今まで通り、生の `raceId` を `X-Race-Id` ヘッダーで送る（02・03章の設計のまま変更なし）。
 | 設計書 | [userMenu1.md](userMenu1.md) / [admin/v2/01_permission.md](admin/v2/01_permission.md) | レスポンスと R9・R10 の更新 |
 
 **見積もり: 実装からテストまで 10〜14時間**（01章 §9 の試算どおり）。自動テストが無いため、全画面を手で確認する時間を含む。
