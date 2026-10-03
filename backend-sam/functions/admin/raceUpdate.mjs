@@ -1,7 +1,8 @@
-import { GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient, Tables, response, getRaceIdHeader } from "/opt/nodejs/dynamodb.js";
 import { requireAdmin } from "/opt/nodejs/admin.js";
-import { todayJST, isValidDateStr, isRaceFinished } from "/opt/nodejs/raceStatus.js";
+import { requireRace } from "/opt/nodejs/raceAccess.js";
+import { todayJST, isValidDateStr } from "/opt/nodejs/raceStatus.js";
 import { isValidTitle, hasDuplicateTitle } from "./raceShared.mjs";
 
 /**
@@ -25,18 +26,9 @@ export const handler = async (event) => {
     const title      = (body.title || "").trim();
     const finishDate = body.finishDate;
 
-    // ── 対象raceの照合（01章§5.1）：存在しない／他サーキット → 404 ──
-    const target = await docClient.send(
-      new GetCommand({ TableName: Tables.race, Key: { id: raceId } })
-    );
-    if (!target.Item || target.Item.organization_id !== auth.circuit) {
-      return response(404, { msg: "対象のレースが存在しません" });
-    }
-
-    // ── 終了済みなら変更不可（01章R7） ──
-    if (isRaceFinished(target.Item.finish_date)) {
-      return response(403, { msg: "終了したレースです", reason: "race_finished" });
-    }
+    // ── 対象raceの照合（01章§5.1）。書き込み系のため終了済みは403 ──
+    const { race, error } = await requireRace(raceId, auth.circuit, { write: true });
+    if (error) return error;
 
     // ── バリデーション（登録と同じ） ──
     if (!isValidTitle(title)) {
@@ -51,7 +43,7 @@ export const handler = async (event) => {
 
     // ── title 重複チェック（自分自身は除外） ──
     if (
-      title !== target.Item.title &&
+      title !== race.title &&
       (await hasDuplicateTitle(auth.circuit, title, raceId))
     ) {
       return response(409, { msg: "同名のレースが既に登録されています" });

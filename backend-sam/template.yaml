@@ -160,6 +160,46 @@ Resources:
                   - dynamodb:GetItem
                 Resource: !GetAtt UsersTable.Arn
 
+  # race / entry / start_driver 関連（管理者向け・一般向け共通）の専用ロール。
+  # RaceTable・EntryTable・StartDriverTable・PitAssignmentTable・PitLogTable のみ許可。
+  # 複数の関数が同じテーブル群にまたがってアクセスするため、関数ごとに分けると
+  # ほぼ同じポリシーの重複が大量に増える。1ロールにまとめて共有する。
+  RaceDataLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "OfficialSupportSystem-${Env}-RaceDataLambdaRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: RaceDataCrudPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:TransactWriteItems
+                Resource:
+                  - !GetAtt RaceTable.Arn
+                  - !Sub "${RaceTable.Arn}/index/*"
+                  - !GetAtt EntryTable.Arn
+                  - !GetAtt StartDriverTable.Arn
+                  - !GetAtt PitAssignmentTable.Arn
+                  - !Sub "${PitAssignmentTable.Arn}/index/*"
+                  - !GetAtt PitLogTable.Arn
+
   # ===== Lambda Layer（共通処理）=====
   # dynamodb.js / generateId / responseヘルパーなどを格納
   CommonLayer:
@@ -287,7 +327,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-BulkEntry"
       CodeUri: functions/admin/
       Handler: entryBulk.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt RaceDataLambdaRole.Arn
       Events:
         Api:
           Type: Api
@@ -298,6 +338,42 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # PUT /admin/entry — エントリー変更（認証必要）
+  EntryUpdateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-EntryUpdate"
+      CodeUri: functions/admin/
+      Handler: entryUpdate.handler
+      Role: !GetAtt RaceDataLambdaRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /admin/entry
+            Method: PUT
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  # DELETE /admin/entry/{carNum} — エントリー削除（認証必要）
+  EntryDeleteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-EntryDelete"
+      CodeUri: functions/admin/
+      Handler: entryDelete.handler
+      Role: !GetAtt RaceDataLambdaRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /admin/entry/{carNum}
+            Method: DELETE
+            Auth:
+              Authorizer: LambdaAuthorizer
+
   # POST /admin/start-driver/bulk — スタートドライバー一括登録（認証必要）
   BulkStartDriverFunction:
     Type: AWS::Serverless::Function
@@ -305,7 +381,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-BulkStartDriver"
       CodeUri: functions/admin/
       Handler: startDriverBulk.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt RaceDataLambdaRole.Arn
       Events:
         Api:
           Type: Api
@@ -316,6 +392,42 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # PUT /admin/start-driver — スタートドライバー変更（認証必要）
+  StartDriverUpdateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-StartDriverUpdate"
+      CodeUri: functions/admin/
+      Handler: startDriverUpdate.handler
+      Role: !GetAtt RaceDataLambdaRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /admin/start-driver
+            Method: PUT
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  # DELETE /admin/start-driver/{carNum} — スタートドライバー削除（認証必要）
+  StartDriverDeleteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-StartDriverDelete"
+      CodeUri: functions/admin/
+      Handler: startDriverDelete.handler
+      Role: !GetAtt RaceDataLambdaRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /admin/start-driver/{carNum}
+            Method: DELETE
+            Auth:
+              Authorizer: LambdaAuthorizer
+
   # GET /entries/init — 初期データ取得（認証必要）
   InitFunction:
     Type: AWS::Serverless::Function
@@ -323,7 +435,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-Init"
       CodeUri: functions/entry/
       Handler: init.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt RaceDataLambdaRole.Arn
       Events:
         Api:
           Type: Api
@@ -331,6 +443,24 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /entries/init
             Method: GET
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  # POST /entries/start-driver — スタートドライバー登録（一般利用者向け・認証必要）
+  StartDriverCreateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-StartDriverCreate"
+      CodeUri: functions/entry/
+      Handler: startDriverCreate.handler
+      Role: !GetAtt RaceDataLambdaRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /entries/start-driver
+            Method: POST
             Auth:
               Authorizer: LambdaAuthorizer
 
@@ -470,7 +600,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-RaceList"
       CodeUri: functions/admin/
       Handler: raceList.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt RaceDataLambdaRole.Arn
       Events:
         Api:
           Type: Api
@@ -488,7 +618,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-RaceCreate"
       CodeUri: functions/admin/
       Handler: raceCreate.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt RaceDataLambdaRole.Arn
       Events:
         Api:
           Type: Api
@@ -506,7 +636,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-RaceUpdate"
       CodeUri: functions/admin/
       Handler: raceUpdate.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt RaceDataLambdaRole.Arn
       Events:
         Api:
           Type: Api
@@ -524,7 +654,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-RaceDelete"
       CodeUri: functions/admin/
       Handler: raceDelete.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt RaceDataLambdaRole.Arn
       Events:
         Api:
           Type: Api

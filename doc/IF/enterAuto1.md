@@ -63,9 +63,19 @@
     "0": ["A<br>noziri", "B<br>mirei", "C<br>JUJU"],
     "1": ["A<br>1gou", "B<br>2gou", "C<br>3gou"],
     "20": ["A<br>灯台", "B<br>強大", "C<br>寛大"]
+  },
+  "startDriver": {
+    "5": "A",
+    "6": null,
+    "15": null,
+    "16": null,
+    "0": null,
+    "1": null,
+    "20": null
   }
 }
 ```
 
 - `carNum`: 数値の配列
 - `driver`: キーは車番（文字列）、値はドライバー名の配列（A〜F、最大6名）。名前内の `<br>` は表示用改行タグ。EntryTable の `driverA`〜`driverF` から生成
+- `startDriver`（2026-10-03追加）: キーは車番（文字列）、値は登録済みのスタートドライバー枠（`"A"`〜`"F"`）。未登録は `null`。`carNum` と同じ車両だけを対象にする（担当エリア外は含まない）。登録は `POST /entries/start-driver`（[03_race_data.md](../aws-sam/admin/v2/03_race_data.md) §3.6）

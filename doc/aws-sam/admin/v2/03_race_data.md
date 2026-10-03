@@ -386,12 +386,22 @@ SK は `username#maintenance_area`。1人が複数エリアを担当する場合
 
 ## 6. 確定後に更新するもの
 
-- [dynamodb-design.md](../../../database/dynamodb-design.md): `entry` から `start_driver` 列を削除。`UsersTable` に `UsernameIndex` を追加
-- [template.yaml](../../../../backend-sam/template.yaml): `UsersTable` の索引追加。entry/start_driver/pit_assignment 用 Lambda の新設・権限。§3.6用に `POST /entries/start-driver`（一般向け・新規Lambda）を追加。§1.2用に `GET /admin/race/data`（`functions/admin/showData.mjs`）を追加。同Lambdaには`UsersTable`の読み取り（Scan）権限も必要
-- `admin.js`: 一覧・変更・削除のUIを追加（今は登録のみ）
-- [enterAuto1.md](../../../IF/enterAuto1.md): `GET /entries/init` のレスポンスに `startDriver` を追加（§3.6）
-- `init.mjs`: `startDriver` を返すよう拡張（`StartDriverTable` を `race_id` で Query し、絞り込み済みの `carNum` に対応する行を拾う）
-- フロント: 新規ページ（仮称 `startDriver.html`）を追加し、利用者メニューから導線を作る（§3.6）
+**entry・start_driver（2026-10-03実装済み）**
+
+- ~~[enterAuto1.md](../../../IF/enterAuto1.md): `GET /entries/init` のレスポンスに `startDriver` を追加（§3.6）~~ 実装済み
+- ~~`init.mjs`: `startDriver` を返すよう拡張~~ 実装済み。担当エリア判定ロジックは `pitAssignmentAccess.js`（共通レイヤー）に切り出し、`startDriverCreate.mjs` と共用
+- ~~entry/start_driver 用 Lambda の新設~~ 実装済み（`entryUpdate.mjs` / `entryDelete.mjs` / `startDriverUpdate.mjs` / `startDriverDelete.mjs` / `startDriverCreate.mjs`（一般向け、§3.6）を新設。`entryBulk.mjs` / `startDriverBulk.mjs` を §2.2・§3.2 準拠に書き換え）
+- race照合（01章§5.1）の共通処理は `raceAccess.js`、driver枠検証は `entryAccess.js`（共通レイヤー）に切り出し、entry/start_driver系Lambda全体で共用
+
+**pit_assignment（未実装・§4で扱う）**
+
+- [dynamodb-design.md](../../../database/dynamodb-design.md): `UsersTable` に `UsernameIndex` を追加（§4.2の「登録済み利用者か」の確認用）
+- [template.yaml](../../../../backend-sam/template.yaml): pit_assignment 用 Lambda の新設・権限。§1.2用に `GET /admin/race/data`（`functions/admin/showData.mjs`）を追加。同Lambdaには`UsersTable`の読み取り（Scan）権限も必要
+
+**フロント（未着手）**
+
+- `admin.js`: entry/start_driver/pit_assignment の一覧・変更・削除のUIを追加（今は登録のみ）
+- 新規ページ（仮称 `startDriver.html`）を追加し、利用者メニューから導線を作る（§3.6）
 
 ## 7. 未決事項
 
