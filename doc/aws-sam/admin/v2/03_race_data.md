@@ -393,10 +393,14 @@ SK は `username#maintenance_area`。1人が複数エリアを担当する場合
 - ~~entry/start_driver 用 Lambda の新設~~ 実装済み（`entryUpdate.mjs` / `entryDelete.mjs` / `startDriverUpdate.mjs` / `startDriverDelete.mjs` / `startDriverCreate.mjs`（一般向け、§3.6）を新設。`entryBulk.mjs` / `startDriverBulk.mjs` を §2.2・§3.2 準拠に書き換え）
 - race照合（01章§5.1）の共通処理は `raceAccess.js`、driver枠検証は `entryAccess.js`（共通レイヤー）に切り出し、entry/start_driver系Lambda全体で共用
 
-**pit_assignment（未実装・§4で扱う）**
+**pit_assignment（2026-10-03実装済み）**
 
-- [dynamodb-design.md](../../../database/dynamodb-design.md): `UsersTable` に `UsernameIndex` を追加（§4.2の「登録済み利用者か」の確認用）
-- [template.yaml](../../../../backend-sam/template.yaml): pit_assignment 用 Lambda の新設・権限。§1.2用に `GET /admin/race/data`（`functions/admin/showData.mjs`）を追加。同Lambdaには`UsersTable`の読み取り（Scan）権限も必要
+- ~~[dynamodb-design.md](../../../database/dynamodb-design.md): `UsersTable` に `UsernameIndex` を追加~~ 実装済み
+- ~~pit_assignment 用 Lambda の新設~~ 実装済み（`pitAssignmentBulk.mjs` / `pitAssignmentUpdate.mjs` / `pitAssignmentDelete.mjs` を新設。`username` の登録済み確認は `usersAccess.js`、担当エリアの存在確認は `pitAssignmentAccess.js`（共通レイヤー）に切り出し）
+
+**§1.2（`GET /admin/race/data`）は未実装**
+
+- [template.yaml](../../../../backend-sam/template.yaml): §1.2用に `GET /admin/race/data`（`functions/admin/showData.mjs`）を追加。同Lambdaには`UsersTable`の読み取り（Scan）権限も必要
 
 **フロント（未着手）**
 

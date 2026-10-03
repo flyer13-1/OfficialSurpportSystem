@@ -199,6 +199,12 @@ Resources:
                   - !GetAtt PitAssignmentTable.Arn
                   - !Sub "${PitAssignmentTable.Arn}/index/*"
                   - !GetAtt PitLogTable.Arn
+              # pit_assignment登録時の「登録済み利用者か」の確認用（§4.2）。
+              # UsersTable本体ではなくUsernameIndexの参照のみに限定する。
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                Resource: !Sub "${UsersTable.Arn}/index/UsernameIndex"
 
   # ===== Lambda Layer（共通処理）=====
   # dynamodb.js / generateId / responseヘルパーなどを格納
@@ -424,6 +430,60 @@ Resources:
           Properties:
             RestApiId: !Ref ApiGateway
             Path: /admin/start-driver/{carNum}
+            Method: DELETE
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  # POST /admin/pit-assignment/bulk — 担当割り当て一括登録（認証必要）
+  BulkPitAssignmentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-BulkPitAssignment"
+      CodeUri: functions/admin/
+      Handler: pitAssignmentBulk.handler
+      Role: !GetAtt RaceDataLambdaRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /admin/pit-assignment/bulk
+            Method: POST
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  # PUT /admin/pit-assignment — 担当割り当て変更（認証必要）
+  PitAssignmentUpdateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-PitAssignmentUpdate"
+      CodeUri: functions/admin/
+      Handler: pitAssignmentUpdate.handler
+      Role: !GetAtt RaceDataLambdaRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /admin/pit-assignment
+            Method: PUT
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  # DELETE /admin/pit-assignment — 担当割り当て削除（認証必要）
+  PitAssignmentDeleteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-PitAssignmentDelete"
+      CodeUri: functions/admin/
+      Handler: pitAssignmentDelete.handler
+      Role: !GetAtt RaceDataLambdaRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /admin/pit-assignment
             Method: DELETE
             Auth:
               Authorizer: LambdaAuthorizer
@@ -668,6 +728,8 @@ Resources:
   # ===== Phase 1: DynamoDB テーブル =====
 
   # ユーザーテーブル: PK=cognito_sub
+  # UsersTable: PK=cognito_sub。GSI=UsernameIndex（pit_assignment登録時の
+  # 「登録済み利用者か」の確認用。doc/aws-sam/admin/v2/03_race_data.md §4.2）
   UsersTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -676,9 +738,18 @@ Resources:
       AttributeDefinitions:
         - AttributeName: cognito_sub
           AttributeType: S
+        - AttributeName: username
+          AttributeType: S
       KeySchema:
         - AttributeName: cognito_sub
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UsernameIndex
+          KeySchema:
+            - AttributeName: username
+              KeyType: HASH
+          Projection:
+            ProjectionType: KEYS_ONLY
 
   # 組織テーブル: PK=circuit（サーキット番号）
   OrganizationsTable:

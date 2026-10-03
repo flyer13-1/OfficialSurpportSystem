@@ -60,3 +60,30 @@ export async function getAssignedEntries(username, raceId) {
     return entryNums.some((n) => assignedNums.includes(n));
   });
 }
+
+/**
+ * 当該raceの entry が使っている maintenance_area を、展開済みの番号の集合として返す。
+ * pit_assignment 登録時の「指定エリアが entry に存在するか」の確認（§4.2）で使う。
+ * 複数件まとめて検証する場合に、entry を1回だけ取得して使い回せるようにしている。
+ */
+export async function getEntryAreaNumbers(raceId) {
+  const entryResult = await docClient.send(
+    new QueryCommand({
+      TableName:                 Tables.entry,
+      KeyConditionExpression:    "race_id = :raceId",
+      ExpressionAttributeValues: { ":raceId": raceId },
+      ProjectionExpression:      "maintenance_area",
+    })
+  );
+  return new Set(
+    (entryResult.Items || []).flatMap((e) => expandRange(e.maintenance_area))
+  );
+}
+
+/**
+ * maintenanceArea（担当範囲。例 "5-10"）が、entryAreaNumbers（getEntryAreaNumbers の結果）と
+ * 1つでも重なるか。
+ */
+export function overlapsEntryAreas(maintenanceArea, entryAreaNumbers) {
+  return expandRange(maintenanceArea).some((n) => entryAreaNumbers.has(n));
+}

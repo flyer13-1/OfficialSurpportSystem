@@ -54,7 +54,7 @@
 | フロント: conform | `GET /user/me` の結果から `circuit` を sessionStorage に保存する。`isAdmin` で「管理者画面へ」を表示する。終了済みの race の大会IDを入力したときは、サーバーのメッセージを表示する | — | 実装済み（`conform.js`） |
 | フロント: admin | `token` と `circuit` の有無だけ検証する。どちらかが無ければ conform.html へ戻す。一覧では終了済みの race を区別して表示し、更新系のボタンを無効にする（見た目だけ）。pitlog はポップアップで表示し、ダウンロードボタンを置く | leader の確認（API の 403 に任せる）。`circuit` や終了の判定を API に送ること | 未実装 |
 | API Gateway ＋ Lambda Authorizer | ID トークンの検証（署名・期限・発行元・クライアント・種別）。不正なら拒否。`username` / `sub` / `isAdmin` を後段に渡す | 権限の判定（通った人には API 全体を許可する）。サーキットや race の期限は知らない | 実装済み（`authorizer.mjs`） |
-| 各 Lambda: 管理者向け | `requireAdmin` で leader とサーキットを確認する。対象 race を取得して、サーキットの照合と終了済みの判定をする（§5） | クライアント指定のサーキットを信用すること | 一部実装：`requireAdmin`（leader判定・サーキット取得）は`admin.js`で実装済み。02章の`raceCreate/raceList/raceUpdate.mjs`は対象raceの照合・終了判定を実装済み（`raceUpdate.mjs`が§5.1相当のチェックを行う）。03・04章の対象Lambda（entry/start_driver/pit_assignment/pitlog管理者向け）は未実装 |
+| 各 Lambda: 管理者向け | `requireAdmin` で leader とサーキットを確認する。対象 race を取得して、サーキットの照合と終了済みの判定をする（§5） | クライアント指定のサーキットを信用すること | 一部実装：`requireAdmin`（leader判定・サーキット取得）は`admin.js`で実装済み。対象raceの照合・終了判定（§5.1相当）は共通処理`raceAccess.js`に切り出し済みで、02章のrace系・03章のentry/start_driver/pit_assignment系Lambdaが全て利用している。04章（pitlog管理者向け）のみ未実装 |
 | 各 Lambda: 一般利用者向け（conform、pitlog の入力・参照・出力） | 対象 race を取得して、終了済みなら拒否する（サーキットでは制限しない） | — | 一部実装：`conform.mjs`のみ実装済み。pitlog系7本・`init`は未実装 |
 
 sessionStorage は利用者が書き換えられるため、フロントの検証は画面を出し分けるためだけのものであり、安全の根拠は各 Lambda にある。
