@@ -10,7 +10,7 @@ API エンドポイントを持たず、AWS コンソール（IAMロール）ま
 
 > **【更新】このセクションの方針は管理者画面に置き換えられた。**
 > M-01 / E-01 / E-04 / E-05 は、AWSコンソール直接操作ではなく **管理者画面（API経由のCRUD）** で行う。
-> 新しいIF設計は **[admin/index.md](admin/index.md)** および配下の `race.md` / `entry.md` / `startDriver.md` / `pitAssignment.md` を正とする。
+> 新しいIF設計は **[admin/v2/README.md](../aws-sam/admin/v2/README.md)** および配下の01〜04章を正とする（旧版の `admin/index.md` ほかは2026-10-03に廃止）。
 > 以下の各テーブル定義・登録フィールドは、画面/APIが扱うデータ形状の参考として残す。
 > （AWSコンソールでの直接操作は、画面が未整備な間の代替手段としてのみ利用する。）
 

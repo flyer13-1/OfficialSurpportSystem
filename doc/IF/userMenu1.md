@@ -90,4 +90,4 @@
 - `race.finish_date` の翌日 0:00（JST）以降のレースは終了済みとして、大会IDが一致しても入室できない（`403`）。
 - 大会IDでの入室は、利用者のサーキットでは制限しない（他サーキットからの応援があるため）。
 - フロント（conform）は、`403` を受けたら `msg` を表示して確認画面にとどまる。画面は移動しない。
-- 判定の詳細は [admin/v2/01_permission.md](admin/v2/01_permission.md) の §5 を参照。
+- 判定の詳細は [admin/v2/01_permission.md](../aws-sam/admin/v2/01_permission.md) の §5 を参照。

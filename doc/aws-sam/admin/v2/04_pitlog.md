@@ -12,6 +12,19 @@
 
 ダウンロード（§5）以降は、管理者画面向けの話として残す。権限の共通ルールは [01_permission.md](01_permission.md) に従う。
 
+> **フロント/バックエンド分割用の仕分け（2026-10-03、未実施・分類のみ）**
+>
+> | 節 | 分類 |
+> |---|---|
+> | 1. 位置づけ | 共通 |
+> | 2. バックエンドのデータ処理（2.1〜2.5） | バックエンド（見出しのとおり） |
+> | 3. 送信形式（3.1〜3.4） | バックエンド（レスポンス仕様） |
+> | 4. フロントでの表示方法（4.1〜4.3） | フロント（見出しのとおり） |
+> | 5. ダウンロード（5.1〜5.2） | 混在（CSV生成はバックエンド、挙動はフロントにも関わる） |
+> | 6. アクセス記録（`OutpostLog`） | バックエンド |
+> | 7. 確定後に更新するもの | 混在 |
+> | 8. 決定事項 | 混在 |
+
 ## 1. 位置づけ
 
 3つの画面は、**同じデータ・同じ形式・同じ描画処理**を使う。違うのは次の3点だけ。
@@ -390,7 +403,7 @@ URL.revokeObjectURL(a.href);
 - [showAll.mjs](../../../../backend-sam/functions/pitlog/showAll.mjs): 共通関数の利用に置き換え、認可（§3.3）を追加、レスポンスを配列に変更、仮キーの無意味なコードを削除。**並び順を `inTime` → `carNum` に変更**（§2.4）
 - `showAllGimic.js`: DOM決め打ちとグローバル変数を排除し、引数で受け取る形に変更。**並べ替えを `inTime` → `carNum` に修正**（現行は `pitNum` 優先で時系列になっておらず、同時刻の比較も `NaN` で効いていない）
 - `showAll.js` / `outPosts.js`: 配列レスポンスに合わせる（`Object.keys()` の変換処理を削除）。`managerId` の受け渡しを削除。イベントの紐付けを自分の側に持つ
-- [showAll.md](../../showAll.md): レスポンス例を配列形式に更新し、`managerId` を削除（IF設計書の追従）
+- [showAll.md](../../../IF/showAll.md): レスポンス例を配列形式に更新し、`managerId` を削除（IF設計書の追従）
 - `admin.html` / `admin.js` / `admin.css`: ポップアップ、表、ダウンロードボタン
 - [dynamodb-design.md](../../../database/dynamodb-design.md) / [SQLcode.sql](../../../database/SQLcode.sql): `outpost_log` に `is_leader` を追加（§6）
 - `outPosts.js`: Excel（SpreadsheetML）の組み立てを CSV に差し替え（BOM・エスケープに注意。§5.1）
