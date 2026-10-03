@@ -5,7 +5,7 @@
 一般利用者向けAPIが `race_id` を信用する根拠を、「値が推測しにくいこと」から「**サーバーの署名があること**」に変えるための設計。
 
 - 対象は **一般利用者向けAPI**（conform / pitlog の入力・参照・出力 / 一般向け start_driver 登録）。**管理者向けAPIは対象外**（§9）——`requireAdmin` とサーキット照合で既に安全性を担保しており、`raceId` の秘匿性に頼っていないため。
-- 権限の共通ルールは [admin/v2/01_permission.md](admin/v2/01_permission.md) に従う。本書は、そこで「将来の拡張候補」としていた仕組み（§9）を具体化したもの。
+- 権限の共通ルールは [admin/v2/01_permission.md](../aws-sam/admin/v2/01_permission.md) に従う。本書は、そこで「将来の拡張候補」としていた仕組み（§9）を具体化したもの。
 
 ## 1. 今の方式と、その弱点
 
@@ -210,7 +210,7 @@ eyJyYWNlSWQiOiJrUTN2Li4uIn0.7f2a9c4e8b1d...
 | フロント | `enterAuto` / `enterHand` / `enterRetire` / `enterUpdate` / `showAll` / `outPosts` / 一般向け start_driver 画面（03章§3.6） | 送信する値の差し替え |
 
 > **管理者向けAPI（`admin.js` / race系・entry系bulk・pit_assignment系 など）はこの設計の対象外。** `requireAdmin`（Cognito JWTのleader判定）＋毎回のサーキット照合（01章§5.1）で既に安全性を担保しており、`raceId` の秘匿性に頼っていないため。管理者側は今まで通り、生の `raceId` を `X-Race-Id` ヘッダーで送る（02・03章の設計のまま変更なし）。
-| 設計書 | [userMenu1.md](userMenu1.md) / [admin/v2/01_permission.md](admin/v2/01_permission.md) | レスポンスと R9・R10 の更新 |
+| 設計書 | [userMenu1.md](userMenu1.md) / [admin/v2/01_permission.md](../aws-sam/admin/v2/01_permission.md) | レスポンスと R9・R10 の更新 |
 
 **見積もり: 実装からテストまで 10〜14時間**（01章 §9 の試算どおり）。自動テストが無いため、全画面を手で確認する時間を含む。
 

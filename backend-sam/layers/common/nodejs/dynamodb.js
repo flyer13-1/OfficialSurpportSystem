@@ -53,6 +53,17 @@ export function response(statusCode, body) {
 }
 
 /**
+ * X-Race-Id ヘッダーの値を取得する（大文字小文字を区別しない）。
+ * raceId はクエリ・パス・ボディに載せず、常にこのヘッダーで送る
+ * （doc/aws-sam/admin/v2/01_permission.md R10）。無ければ null。
+ */
+export function getRaceIdHeader(event) {
+  const headers = event.headers || {};
+  const key = Object.keys(headers).find((k) => k.toLowerCase() === "x-race-id");
+  return key ? headers[key] : null;
+}
+
+/**
  * 簡易 ULID 生成（依存なしバージョン）
  * ulid パッケージが使えない場合のフォールバック
  */

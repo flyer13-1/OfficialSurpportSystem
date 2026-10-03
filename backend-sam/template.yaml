@@ -125,8 +125,8 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - dynamodb:Scan
-                Resource: !GetAtt RaceTable.Arn
+                  - dynamodb:Query
+                Resource: !Sub "${RaceTable.Arn}/index/TodayIdIndex"
         - PolicyName: RaceTokenSecretReadPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -280,38 +280,38 @@ Resources:
 
   # ===== Phase 3: コア API =====
 
-  # POST /entry/bulk — エントリー一括登録（認証必要）
+  # POST /admin/entry/bulk — エントリー一括登録（認証必要）
   BulkEntryFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-BulkEntry"
-      CodeUri: functions/entry/
-      Handler: bulkEntry.handler
+      CodeUri: functions/admin/
+      Handler: entryBulk.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
-            Path: /entry/bulk
+            Path: /admin/entry/bulk
             Method: POST
             Auth:
               Authorizer: LambdaAuthorizer
 
-  # POST /entry/start-driver/bulk — スタートドライバー一括登録（認証必要）
+  # POST /admin/start-driver/bulk — スタートドライバー一括登録（認証必要）
   BulkStartDriverFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-BulkStartDriver"
-      CodeUri: functions/entry/
-      Handler: bulkStartDriver.handler
+      CodeUri: functions/admin/
+      Handler: startDriverBulk.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
-            Path: /entry/start-driver/bulk
+            Path: /admin/start-driver/bulk
             Method: POST
             Auth:
               Authorizer: LambdaAuthorizer
@@ -461,76 +461,76 @@ Resources:
               Authorizer: LambdaAuthorizer
 
   # ===== 管理者画面（一次情報CRUD）: race =====
-  # IF設計書: doc/IF/admin/race.md ／ 認可は requireAdmin（layer admin.js）で admin 限定
+  # IF設計書: doc/aws-sam/admin/v2/02_race.md ／ 認可は requireAdmin（layer admin.js）で admin 限定
 
-  # GET /race — レース一覧（認証必要・admin）
+  # GET /admin/race — レース一覧（認証必要・admin）
   RaceListFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-RaceList"
-      CodeUri: functions/race/
-      Handler: list.handler
+      CodeUri: functions/admin/
+      Handler: raceList.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
-            Path: /race
+            Path: /admin/race
             Method: GET
             Auth:
               Authorizer: LambdaAuthorizer
 
-  # POST /race — レース登録（認証必要・admin）
+  # POST /admin/race — レース登録（認証必要・admin）
   RaceCreateFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-RaceCreate"
-      CodeUri: functions/race/
-      Handler: create.handler
+      CodeUri: functions/admin/
+      Handler: raceCreate.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
-            Path: /race
+            Path: /admin/race
             Method: POST
             Auth:
               Authorizer: LambdaAuthorizer
 
-  # PUT /race — レース変更（認証必要・admin）
+  # PUT /admin/race — レース変更（認証必要・admin）
   RaceUpdateFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-RaceUpdate"
-      CodeUri: functions/race/
-      Handler: update.handler
+      CodeUri: functions/admin/
+      Handler: raceUpdate.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
-            Path: /race
+            Path: /admin/race
             Method: PUT
             Auth:
               Authorizer: LambdaAuthorizer
 
-  # DELETE /race/{id} — レース削除（認証必要・admin）
+  # DELETE /admin/race/{id} — レース削除（認証必要・admin）
   RaceDeleteFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-RaceDelete"
-      CodeUri: functions/race/
-      Handler: delete.handler
+      CodeUri: functions/admin/
+      Handler: raceDelete.handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         Api:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGateway
-            Path: /race/{id}
+            Path: /admin/race/{id}
             Method: DELETE
             Auth:
               Authorizer: LambdaAuthorizer
@@ -564,6 +564,8 @@ Resources:
           KeyType: HASH
 
   # レーステーブル: PK=id
+  # RaceTable: PK=id。GSI=OrganizationIndex（自分のサーキットの一覧・title重複確認）、
+  # TodayIdIndex（conformの大会ID照合・todayId重複確認）。doc/aws-sam/admin/v2/02_race.md §1
   RaceTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -572,9 +574,30 @@ Resources:
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S
+        - AttributeName: organization_id
+          AttributeType: N
+        - AttributeName: finish_date
+          AttributeType: S
+        - AttributeName: today_id
+          AttributeType: S
       KeySchema:
         - AttributeName: id
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: OrganizationIndex
+          KeySchema:
+            - AttributeName: organization_id
+              KeyType: HASH
+            - AttributeName: finish_date
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: TodayIdIndex
+          KeySchema:
+            - AttributeName: today_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
 
   # エントリーテーブル: PK=race_id, SK=car_num
   EntryTable:

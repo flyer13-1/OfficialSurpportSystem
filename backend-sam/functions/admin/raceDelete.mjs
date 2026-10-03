@@ -4,7 +4,7 @@ import { requireAdmin } from "/opt/nodejs/admin.js";
 
 /**
  * DELETE /race/{id} — レース削除
- * IF設計書: doc/IF/admin/race.md
+ * IF設計書: doc/aws-sam/admin/v2/03_race_data.md §5
  *
  * エントリーが1件でも紐付く場合は削除不可（409）。
  */

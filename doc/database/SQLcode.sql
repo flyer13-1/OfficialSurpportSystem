@@ -27,6 +27,8 @@
 --   title の UNIQUE を (organization_id, title) の複合に変更（サーキット内のみ重複不可）
 -- ・entry.maintenance_area を VARCHAR から INT に変更（車の作業エリアは1箇所のみ）。
 --   entry.start_driver は持たない（実体は start_driver テーブル側で管理）
+-- ・race.id の生成方法を「暗号論的乱数」から「ULID」に変更（署名付きraceIdトークンの
+--   採用により、id 自体の予測不可能性が不要になったため。doc/IF/raceIdToken.md §10）
 -----------------
 
 
@@ -58,7 +60,7 @@ CREATE TABLE users (
 -- レースタイトル表
 
 CREATE TABLE race (
-    id              VARCHAR(32)  NOT NULL,         --トークン相当。サーバーが暗号論的乱数で生成（22文字）。画面には出さない
+    id              VARCHAR(32)  NOT NULL,         --トークン相当。サーバーがULIDで生成。画面には出さない
     title           VARCHAR(200) NOT NULL,
     today_id        VARCHAR(50)  NOT NULL UNIQUE,  --大会ID（conform1 POST で照合）。当日配布するパスワード相当
     finish_date     DATE         NOT NULL,         --レース終了日。翌日 0:00（JST）以降が「終了済み」

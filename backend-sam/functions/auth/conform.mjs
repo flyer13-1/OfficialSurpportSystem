@@ -1,6 +1,7 @@
-import { ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient, Tables, response } from "/opt/nodejs/dynamodb.js";
 import { issueRaceToken } from "/opt/nodejs/raceToken.js";
+import { finishBoundaryEpochSec, isRaceFinished } from "/opt/nodejs/raceStatus.js";
 
 /**
  * POST /user/me — 大会ID照会
@@ -10,19 +11,9 @@ import { issueRaceToken } from "/opt/nodejs/raceToken.js";
  */
 
 // finish_date を持たない古いレース（02章のレース登録実装前のテストデータ）向けの
-// 暫定フォールバック。02章が実装されれば全レースに finish_date が入るため、
+// 暫定フォールバック。02章の実装後に作られたレースは全て finish_date を持つため、
 // この分岐はいずれ使われなくなる。
 const FALLBACK_EXP_SECONDS = 24 * 60 * 60; // 24時間
-
-/**
- * finish_date（"YYYY-MM-DD"、JSTの日付）の翌日 0:00（JST）の UNIX秒を返す。
- * 01章§1の「終了済み」の境界と同じ値（JSTはUTC+9固定でサマータイム無しのため、
- * 「当日15:00 UTC」＝「翌日0:00 JST」として直接計算できる）。
- */
-function expFromFinishDate(finishDate) {
-  const [y, m, d] = finishDate.split("-").map(Number);
-  return Math.floor(Date.UTC(y, m - 1, d, 15, 0, 0) / 1000);
-}
 
 export const handler = async (event) => {
   try {
@@ -42,12 +33,12 @@ export const handler = async (event) => {
       return response(400, { msg: "大会IDは半角英数字と記号(-_!)で15文字以上です" });
     }
 
-    // ── RaceTable を Scan して todayId と照合 ──
-    // TODO: 02章の TodayIdIndex（GSI）が追加されたら Query に置き換える
+    // ── RaceTable を TodayIdIndex で照合（02章§1。Scanから変更） ──
     const result = await docClient.send(
-      new ScanCommand({
+      new QueryCommand({
         TableName:                 Tables.race,
-        FilterExpression:         "today_id = :todayId",
+        IndexName:                 "TodayIdIndex",
+        KeyConditionExpression:    "today_id = :todayId",
         ExpressionAttributeValues: { ":todayId": todayId },
       })
     );
@@ -59,13 +50,13 @@ export const handler = async (event) => {
     const race = result.Items[0];
 
     // ── 終了済みレースの判定（01章§5.4・§1） ──
-    const exp = race.finish_date
-      ? expFromFinishDate(race.finish_date)
-      : Math.floor(Date.now() / 1000) + FALLBACK_EXP_SECONDS;
-
-    if (race.finish_date && Date.now() >= exp * 1000) {
+    if (race.finish_date && isRaceFinished(race.finish_date)) {
       return response(403, { msg: "終了したレースです", reason: "race_finished" });
     }
+
+    const exp = race.finish_date
+      ? finishBoundaryEpochSec(race.finish_date)
+      : Math.floor(Date.now() / 1000) + FALLBACK_EXP_SECONDS;
 
     // ── raceId トークンを発行する（raceIdToken.md §3・§4） ──
     const raceToken = await issueRaceToken({ raceId: race.id, sub, exp });

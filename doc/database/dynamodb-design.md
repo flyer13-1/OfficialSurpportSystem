@@ -9,12 +9,12 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 - **AUTO_INCREMENT は使わない**（DynamoDB に連番機能が無いため）。代理キーは以下で代替する。
   - 自然キーがある → それをキーにする（users=`cognito_sub`、pit_log=本来 (race_id,car_num,pit_num)）
   - 追記ログで自然順序キーが無い → **ULID**（時刻プレフィックス付き＝文字列ソートで時系列順になる）
-  - **race=`id` は暗号論的乱数**（下記）
-- **ULID を使うテーブル**: `pit_log` / `pit_log_history` / `outpost_log`
+  - **race=`id` も ULID**（下記。2026-10-03に暗号論的乱数から変更）
+- **ULID を使うテーブル**: `pit_log` / `pit_log_history` / `outpost_log` / `race`
   - ULID は `dynamodb.js` の `generateId()` が生成（固定幅 base32 の時刻 + ランダム）。
   - ULID は「保存順・一意キー・おおまかな時系列」用。**画面の「ピットイン順」など真の時系列は `in_time`（記録された実時刻）でソートする**（ULID は保存時刻であり実ピット時刻ではないため）。
-- **race の識別子は2本立て**（詳細は [admin/v2/01_permission.md](../IF/admin/v2/01_permission.md) §1）
-  - `id`（= `raceId`）: **トークン相当**。todayId の照合を通過したクライアントに渡され、以降の全 API の `race_id` に使う。有効期限・失効の仕組みが無いため、**サーバーが暗号論的乱数（`crypto`）で生成**し、予測不可能・全体で一意にする（16バイト → URL安全なBase64で22文字）。**管理者にも画面上は見せない。** 送信時は URL やボディではなく `X-Race-Id` ヘッダーに乗せる（01章 R10）。
+- **race の識別子は2本立て**（詳細は [admin/v2/01_permission.md](../aws-sam/admin/v2/01_permission.md) §1）
+  - `id`（= `raceId`）: **トークン相当**。todayId の照合を通過したクライアントに渡され、以降の全 API の `race_id` に使う。有効期限・失効の仕組みが無いため、以前は予測不可能性だけで安全性を担保していたが、署名付きトークン方式の採用によりこれが不要になり、**サーバーが ULID（`generateId()`）で生成**するよう変更した（[raceIdToken.md](../IF/raceIdToken.md) §10）。**管理者にも画面上は見せない。** 送信時は URL やボディではなく `X-Race-Id` ヘッダーに乗せる（01章 R10）。
   - `today_id`: **パスワード相当（大会ID）**。当日配布し、conform（`POST /user/me`）の照合でのみ使用する。こちらもサーバーが暗号論的乱数で生成（紛らわしい文字を除いた英数字17文字）。
 - 日時は ISO8601 文字列（`+09:00` 付き）で保持（SQL の DATETIME/TIMESTAMP 相当）。
 - 整合性制約（UNIQUE / FK / CHECK）は DynamoDB では効かないため**アプリで担保**する。
@@ -39,7 +39,7 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 
 - PK: `cognito_sub`（SQL の代理キー `id` は廃止。一意となるこれを参照）
 - GSI **UsernameIndex**: HASH=`username`（Projection: KEYS_ONLY で足りる）
-  - 用途: pit_assignment 登録時の「その `username` が登録済み利用者か」の確認（[admin/v2/03_race_data.md](../IF/admin/v2/03_race_data.md) §4.2）。PK が `cognito_sub` のため、`username` では引けないので追加する。
+  - 用途: pit_assignment 登録時の「その `username` が登録済み利用者か」の確認（[admin/v2/03_race_data.md](../aws-sam/admin/v2/03_race_data.md) §4.2）。PK が `cognito_sub` のため、`username` では引けないので追加する。
 
 | 属性            | 型  | キー   | NULL | SQL対応         | 備考                                             |
 | --------------- | --- | ------ | ---- | --------------- | ------------------------------------------------ |
@@ -61,7 +61,7 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 
 | 属性            | 型  | キー   | NULL | SQL対応         | 備考                                                                                                           |
 | --------------- | --- | ------ | ---- | --------------- | ---------------------------------------------------------------------------------------------------------------- |
-| id              | S   | PK     | NO   | id              | **トークン相当**。サーバーが暗号論的乱数で生成（22文字）。AUTO_INCREMENT代替。画面には表示しない                |
+| id              | S   | PK     | NO   | id              | サーバーが ULID（`generateId()`）で生成。AUTO_INCREMENT代替。画面には表示しない。予測可能性は問題ない（安全性はraceIdトークンの署名が担保。[raceIdToken.md](../IF/raceIdToken.md) §10） |
 | title           | S   |        | NO   | title           | **同一サーキット内**でのみ重複不可（他サーキットとは重複可）。アプリで担保                                     |
 | today_id        | S   | GSI-PK | NO   | today_id        | **パスワード相当（大会ID）**。サーバーが生成（17文字）。conform でのみ照合。`race_id` には使わない             |
 | organization_id | N   | GSI-PK | NO   | organization_id | organizations.circuit を参照。登録した管理者のサーキットをサーバーが付ける。変更不可                           |
@@ -70,7 +70,7 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 | created_by      | S   |        | NO   | —               | 登録した管理者の `cognito_sub`。ログの観点から保持                                                             |
 
 > `finish_date` を `YYYY-MM-DD` の文字列にすると、大小比較がそのまま日付順になるため、GSI の RANGE キーとしてそのまま使える。
-> 「終了済みか」は保存せず、`GET /race` のたびに Lambda が `finish_date` と現在時刻（JST）を比べて算出する（[admin/v2/02_race.md](../IF/admin/v2/02_race.md) §3）。
+> 「終了済みか」は保存せず、`GET /race` のたびに Lambda が `finish_date` と現在時刻（JST）を比べて算出する（[admin/v2/02_race.md](../aws-sam/admin/v2/02_race.md) §3）。
 
 ---
 
@@ -230,7 +230,7 @@ SQL のテーブル名・項目名・項目順・型に揃えることを原則�
 8. pit_log_history は **項目単位（1項目=1レコード）** で差分のみ記録（field_name='multiple' 廃止）。
 9. pit_log の time は **A/B/C の2-time パターン検証**を入れる（out_time 単独は不可）。
 
-> 管理者判定（leader）は **Cognito のグループ**で行うため、`users` に `admin` 属性は持たせない（[admin/v2/01_permission.md](../IF/admin/v2/01_permission.md) R3）。
+> 管理者判定（leader）は **Cognito のグループ**で行うため、`users` に `admin` 属性は持たせない（[admin/v2/01_permission.md](../aws-sam/admin/v2/01_permission.md) R3）。
 
 ## SQLcode.sql 側にも追従が必要な点
 
