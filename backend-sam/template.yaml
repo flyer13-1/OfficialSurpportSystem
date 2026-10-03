@@ -205,6 +205,11 @@ Resources:
                 Action:
                   - dynamodb:Query
                 Resource: !Sub "${UsersTable.Arn}/index/UsernameIndex"
+              # GET /admin/race/data（§1.2）で users 一覧を返すための読み取り専用アクセス。
+              - Effect: Allow
+                Action:
+                  - dynamodb:Scan
+                Resource: !GetAtt UsersTable.Arn
 
   # ===== Lambda Layer（共通処理）=====
   # dynamodb.js / generateId / responseヘルパーなどを格納
@@ -485,6 +490,24 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /admin/pit-assignment
             Method: DELETE
+            Auth:
+              Authorizer: LambdaAuthorizer
+
+  # GET /admin/race/data — entry/start_driver/pit_assignment/users 統合一覧（認証必要）
+  ShowDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-ShowData"
+      CodeUri: functions/admin/
+      Handler: showData.handler
+      Role: !GetAtt RaceDataLambdaRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /admin/race/data
+            Method: GET
             Auth:
               Authorizer: LambdaAuthorizer
 

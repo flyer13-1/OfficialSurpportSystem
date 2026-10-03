@@ -398,9 +398,11 @@ SK は `username#maintenance_area`。1人が複数エリアを担当する場合
 - ~~[dynamodb-design.md](../../../database/dynamodb-design.md): `UsersTable` に `UsernameIndex` を追加~~ 実装済み
 - ~~pit_assignment 用 Lambda の新設~~ 実装済み（`pitAssignmentBulk.mjs` / `pitAssignmentUpdate.mjs` / `pitAssignmentDelete.mjs` を新設。`username` の登録済み確認は `usersAccess.js`、担当エリアの存在確認は `pitAssignmentAccess.js`（共通レイヤー）に切り出し）
 
-**§1.2（`GET /admin/race/data`）は未実装**
+**§1.2（`GET /admin/race/data`、2026-10-03実装済み）**
 
-- [template.yaml](../../../../backend-sam/template.yaml): §1.2用に `GET /admin/race/data`（`functions/admin/showData.mjs`）を追加。同Lambdaには`UsersTable`の読み取り（Scan）権限も必要
+- ~~[template.yaml](../../../../backend-sam/template.yaml): §1.2用に `GET /admin/race/data`（`functions/admin/showData.mjs`）を追加~~ 実装済み。`RaceDataLambdaRole`に`UsersTable`のScan権限を追加済み
+
+これで03章のバックエンドは全て実装済み。残るはフロント（`admin.js`）のみ。
 
 **フロント（未着手）**
 
