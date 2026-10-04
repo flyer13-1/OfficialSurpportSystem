@@ -205,9 +205,11 @@ Resources:
                 Action:
                   - dynamodb:Query
                 Resource: !Sub "${UsersTable.Arn}/index/UsernameIndex"
+              # requireAdmin が UsersTable を cognito_sub で引いて所属サーキットを取得する（全管理者API）。
               # GET /admin/race/data（§1.2）で users 一覧を返すための読み取り専用アクセス。
               - Effect: Allow
                 Action:
+                  - dynamodb:GetItem
                   - dynamodb:Scan
                 Resource: !GetAtt UsersTable.Arn
 

@@ -26,10 +26,31 @@ export function isRaceFinished(finishDate) {
   return Date.now() >= finishBoundaryEpochSec(finishDate) * 1000;
 }
 
-/** race の一覧表示用ステータス（02章§3）。 */
+/**
+ * 開催初日（"YYYY-MM-DD"）。基本は土日開催のため、終了日が日曜なら前日の土曜を初日とみなす。
+ * 終了日が土曜など日曜以外なら終了日そのものを初日とする。例外は許容する（見やすさ用の表示）。
+ */
+export function startDayOf(finishDate) {
+  const [y, m, d] = finishDate.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (dt.getUTCDay() === 0) dt.setUTCDate(dt.getUTCDate() - 1); // 日曜 → 前日（土曜）
+  return dt.toISOString().slice(0, 10);
+}
+
+/**
+ * race の一覧表示用ステータス（02章§3）。
+ *   upcoming: 開催前（今日が開催初日より前。木・金の練習走行もここに含む）
+ *   active  : 開催中（開催初日〜終了日の前日）
+ *   lastDay : 本日終了（今日が終了日）
+ *   finished: 終了済み（終了日の翌日0:00以降）
+ * 終了判定（isRaceFinished）は従来どおり。ステータスは表示用の目安。
+ */
 export function raceStatus(finishDate) {
   if (isRaceFinished(finishDate)) return "finished";
-  return todayJST() === finishDate ? "lastDay" : "active";
+  const today = todayJST();
+  if (today === finishDate) return "lastDay";
+  if (today < startDayOf(finishDate)) return "upcoming";
+  return "active";
 }
 
 /** "YYYY-MM-DD" 形式かつ実在する日付かを検証する（うるう年等もカレンダー計算で弾く）。 */
