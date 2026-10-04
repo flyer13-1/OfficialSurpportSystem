@@ -1,19 +1,22 @@
 import { QueryCommand, BatchWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient, Tables, response, generateId } from "/opt/nodejs/dynamodb.js";
+import { requireGeneralRace } from "/opt/nodejs/raceToken.js";
+import { findUnassignedCars } from "/opt/nodejs/pitAssignmentAccess.js";
 
 /**
  * POST /entries/auto — 自動入力送信
  * IF設計書: enterAuto2.md
  * current + unsent のデータを BatchWriteItem で PitLogTable に保存
- * クエリパラメータ: race_id
+ * raceId は X-Race-Id（raceId トークン）で受け取る
  */
 export const handler = async (event) => {
   try {
     const username = event.requestContext?.authorizer?.username;
     if (!username) return response(401, { msg: "認証が必要です" });
 
-    const race_id = event.queryStringParameters?.race_id;
-    if (!race_id) return response(400, { msg: "race_id は必須です" });
+    const access = await requireGeneralRace(event);
+    if (access.error) return access.error;
+    const raceId = access.raceId;
 
     const body = JSON.parse(event.body || "{}");
     const { current, unsent } = body;
@@ -25,6 +28,11 @@ export const handler = async (event) => {
     // current + unsent をマージ（同一車番は current 優先）
     const merged = { ...unsent, ...current };
 
+    const carNums = Object.keys(merged).map(Number).filter((n) => !isNaN(n));
+    if ((await findUnassignedCars(username, raceId, carNums)).length > 0) {
+      return response(403, { msg: "担当エリア外の車両が含まれています" });
+    }
+
     // ── 各車番の次の pit_num を取得してアイテムを生成 ──
     const putItems = [];
 
@@ -32,10 +40,10 @@ export const handler = async (event) => {
       const car_num = Number(carNumStr);
       if (isNaN(car_num)) continue;
 
-      // バリデーション: inTime / outTime / garageInTime の最低1つが必要
-      if (!data.inTime && !data.outTime && !data.garageInTime) {
+      // バリデーション: inTime / outTime の最低1つが必要
+      if (!data.inTime && !data.outTime) {
         return response(400, {
-          msg: `車番 ${car_num}: inTime / outTime / garageInTime のいずれかは必須です`,
+          msg: `車番 ${car_num}: inTime / outTime のいずれかは必須です`,
         });
       }
       // outTime が inTime より前のチェック
@@ -51,7 +59,7 @@ export const handler = async (event) => {
           TableName:                 Tables.pitLog,
           KeyConditionExpression:    "race_id = :race_id",
           FilterExpression:          "car_num = :car_num",
-          ExpressionAttributeValues: { ":race_id": race_id, ":car_num": car_num },
+          ExpressionAttributeValues: { ":race_id": raceId, ":car_num": car_num },
           ProjectionExpression:      "pit_num",
         })
       );
@@ -64,14 +72,13 @@ export const handler = async (event) => {
       putItems.push({
         PutRequest: {
           Item: {
-            race_id,
+            race_id:        raceId,
             id:             generateId(),
             car_num,
             username,
             pit_num:        maxPitNum + 1,
             in_time:        data.inTime        || null,
             out_time:       data.outTime       || null,
-            garage_in_time: data.garageInTime  || null,
             driver_out:     data.outDriver     || null,
             tire:           data.tire    === true,
             oil:            data.oil     === true,

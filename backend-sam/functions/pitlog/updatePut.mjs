@@ -1,5 +1,7 @@
 import { QueryCommand, UpdateCommand, PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient, Tables, response, generateId } from "/opt/nodejs/dynamodb.js";
+import { requireGeneralRace } from "/opt/nodejs/raceToken.js";
+import { findUnassignedCars } from "/opt/nodejs/pitAssignmentAccess.js";
 
 /**
  * PUT /entries/update — 記録変更 / リタイア情報更新 / リタイア取り消し
@@ -14,8 +16,9 @@ export const handler = async (event) => {
     const username = event.requestContext?.authorizer?.username;
     if (!username) return response(401, { msg: "認証が必要です" });
 
-    const race_id = event.queryStringParameters?.race_id;
-    if (!race_id) return response(400, { msg: "race_id は必須です" });
+    const access = await requireGeneralRace(event);
+    if (access.error) return access.error;
+    const race_id = access.raceId;
 
     const body = JSON.parse(event.body || "{}");
     const { selection, carNum } = body;
@@ -25,10 +28,13 @@ export const handler = async (event) => {
       return response(400, { msg: "carNum は必須です" });
     }
     const car_num = Number(carNum);
+    if ((await findUnassignedCars(username, race_id, [car_num])).length > 0) {
+      return response(403, { msg: "担当エリア外の車両です" });
+    }
 
     // ── selection=1: ピット記録変更 ──
     if (String(selection) === "1") {
-      const { when, inTime, outTime, garageInTime, outDriver, tire, oil, note } = body;
+      const { when, inTime, outTime, outDriver, tire, oil, note } = body;
       if (!when) return response(400, { msg: "when（ピット回数）は必須です" });
 
       const pitNum = Number(when);
@@ -70,12 +76,6 @@ export const handler = async (event) => {
         exprValues[":out_time"] = outTime || null;
         changedOld.out_time = targetLog.out_time;
         changedNew.outTime  = outTime || null;
-      }
-      if (garageInTime !== undefined) {
-        exprParts.push("garage_in_time = :garage_in_time");
-        exprValues[":garage_in_time"] = garageInTime || null;
-        changedOld.garage_in_time = targetLog.garage_in_time;
-        changedNew.garageInTime   = garageInTime || null;
       }
       if (outDriver !== undefined) {
         exprParts.push("driver_out = :driver_out");

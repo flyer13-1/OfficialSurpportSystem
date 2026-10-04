@@ -1,4 +1,4 @@
-import { QueryCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient, Tables, response, getRaceIdHeader } from "/opt/nodejs/dynamodb.js";
 import { requireAdmin } from "/opt/nodejs/admin.js";
 import { requireRace } from "/opt/nodejs/raceAccess.js";
@@ -20,7 +20,7 @@ export const handler = async (event) => {
     const { error } = await requireRace(raceId, auth.circuit);
     if (error) return error;
 
-    const [entryResult, startDriverResult, pitAssignmentResult, usersResult] =
+    const [entryResult, startDriverResult, pitAssignmentResult] =
       await Promise.all([
         docClient.send(
           new QueryCommand({
@@ -43,8 +43,6 @@ export const handler = async (event) => {
             ExpressionAttributeValues: { ":raceId": raceId },
           })
         ),
-        // users は自分のサーキットに限らず全件（他サーキットからの応援があるため。§1.2）
-        docClient.send(new ScanCommand({ TableName: Tables.users })),
       ]);
 
     const entries = (entryResult.Items || []).map((e) => ({
@@ -72,12 +70,7 @@ export const handler = async (event) => {
       maintenanceArea: pa.maintenance_area,
     }));
 
-    const users = (usersResult.Items || []).map((u) => ({
-      username:       u.username,
-      organizationId: u.organization_id,
-    }));
-
-    return response(200, { msg: "", entries, startDrivers, pitAssignments, users });
+    return response(200, { msg: "", entries, startDrivers, pitAssignments });
   } catch (err) {
     console.error("race data error:", err);
     return response(500, { msg: "サーバーエラーが発生しました" });

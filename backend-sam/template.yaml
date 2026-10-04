@@ -178,6 +178,14 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
+        - PolicyName: RaceTokenSecretReadPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/OfficialSupportSystem/dev/race-token-secret"
         - PolicyName: RaceDataCrudPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -199,6 +207,9 @@ Resources:
                   - !GetAtt PitAssignmentTable.Arn
                   - !Sub "${PitAssignmentTable.Arn}/index/*"
                   - !GetAtt PitLogTable.Arn
+                  - !GetAtt PitLogHistoryTable.Arn
+                  - !GetAtt RetireTable.Arn
+                  - !GetAtt OutpostLogTable.Arn
               # pit_assignment登録時の「登録済み利用者か」の確認用（§4.2）。
               # UsersTable本体ではなくUsernameIndexの参照のみに限定する。
               - Effect: Allow
@@ -549,6 +560,24 @@ Resources:
             Auth:
               Authorizer: LambdaAuthorizer
 
+  # PUT /entries/start-driver — スタートドライバー変更（一般利用者向け・認証必要）
+  StartDriverUpdateGeneralFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "OfficialSupportSystem-${Env}-StartDriverUpdateGeneral"
+      CodeUri: functions/entry/
+      Handler: startDriverUpdate.handler
+      Role: !GetAtt RaceDataLambdaRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /entries/start-driver
+            Method: PUT
+            Auth:
+              Authorizer: LambdaAuthorizer
+
   # POST /entries/auto — 自動入力送信（認証必要）
   AutoCreateFunction:
     Type: AWS::Serverless::Function
@@ -556,7 +585,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-AutoCreate"
       CodeUri: functions/pitlog/
       Handler: autoCreate.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt RaceDataLambdaRole.Arn
       Events:
         Api:
           Type: Api
@@ -574,7 +603,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-HandCreate"
       CodeUri: functions/pitlog/
       Handler: handCreate.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt RaceDataLambdaRole.Arn
       Events:
         Api:
           Type: Api
@@ -592,7 +621,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-UpdateGet"
       CodeUri: functions/pitlog/
       Handler: updateGet.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt RaceDataLambdaRole.Arn
       Events:
         Api:
           Type: Api
@@ -610,7 +639,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-UpdatePut"
       CodeUri: functions/pitlog/
       Handler: updatePut.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt RaceDataLambdaRole.Arn
       Events:
         Api:
           Type: Api
@@ -628,7 +657,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-RetireGet"
       CodeUri: functions/pitlog/
       Handler: retireGet.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt RaceDataLambdaRole.Arn
       Events:
         Api:
           Type: Api
@@ -646,7 +675,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-RetireCreate"
       CodeUri: functions/pitlog/
       Handler: retireCreate.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt RaceDataLambdaRole.Arn
       Events:
         Api:
           Type: Api
@@ -664,7 +693,7 @@ Resources:
       FunctionName: !Sub "OfficialSupportSystem-${Env}-ShowAll"
       CodeUri: functions/pitlog/
       Handler: showAll.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt RaceDataLambdaRole.Arn
       Events:
         Api:
           Type: Api

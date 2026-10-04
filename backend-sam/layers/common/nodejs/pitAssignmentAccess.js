@@ -87,3 +87,9 @@ export async function getEntryAreaNumbers(raceId) {
 export function overlapsEntryAreas(maintenanceArea, entryAreaNumbers) {
   return expandRange(maintenanceArea).some((n) => entryAreaNumbers.has(n));
 }
+
+/** carNums のうち、呼び出し元の担当エリアに含まれないものを返す。 */
+export async function findUnassignedCars(username, raceId, carNums) {
+  const assigned = new Set((await getAssignedEntries(username, raceId)).map((e) => e.car_num));
+  return carNums.filter((n) => !assigned.has(n));
+}

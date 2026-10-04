@@ -1,4 +1,4 @@
-import { QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { QueryCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient, Tables, response } from "/opt/nodejs/dynamodb.js";
 import { requireAdmin } from "/opt/nodejs/admin.js";
 import { raceStatus } from "/opt/nodejs/raceStatus.js";
@@ -39,7 +39,14 @@ export const handler = async (event) => {
       };
     });
 
-    return response(200, { msg: "", races });
+    // 登録時の担当者候補（pit_assignment の担当者名）。全サーキット分を返し、絞り込みは画面側で行う
+    const usersResult = await docClient.send(new ScanCommand({ TableName: Tables.users }));
+    const users = (usersResult.Items || []).map((u) => ({
+      username:       u.username,
+      organizationId: u.organization_id,
+    }));
+
+    return response(200, { msg: "", races, users });
   } catch (err) {
     console.error("race list error:", err);
     return response(500, { msg: "サーバーエラーが発生しました" });

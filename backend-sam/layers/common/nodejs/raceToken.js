@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { SSMClient, GetParameterCommand } from "@aws-sdk/client-ssm";
+import { response, getRaceIdHeader } from "/opt/nodejs/dynamodb.js";
 
 /**
  * raceId トークン（署名付き）の発行・検証。
@@ -96,4 +97,24 @@ export async function verifyRaceToken(token, callerSub) {
   }
 
   return { raceId: payload.raceId };
+}
+
+/**
+ * 一般向けAPIの入口。X-Race-Id の raceId トークンを検証し、レースIDを返す。
+ * 終了済み（exp 超過）は 403 + reason race_finished（04章§3.4）。それ以外の不正は理由を返さない（§5）。
+ *
+ * @returns {Promise<{ raceId: string } | { error: object }>}
+ */
+export async function requireGeneralRace(event) {
+  const result = await verifyRaceToken(
+    getRaceIdHeader(event),
+    event.requestContext?.authorizer?.sub
+  );
+  if (result.error === "expired") {
+    return { error: response(403, { msg: "終了したレースです", reason: "race_finished" }) };
+  }
+  if (result.error) {
+    return { error: response(403, { msg: "大会IDを確認できません。入室し直してください" }) };
+  }
+  return { raceId: result.raceId };
 }

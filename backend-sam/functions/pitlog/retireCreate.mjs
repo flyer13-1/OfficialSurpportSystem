@@ -1,5 +1,6 @@
 import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient, Tables, response } from "/opt/nodejs/dynamodb.js";
+import { requireGeneralRace } from "/opt/nodejs/raceToken.js";
 
 /**
  * POST /entries/retire — リタイア登録
@@ -11,8 +12,9 @@ export const handler = async (event) => {
     const username = event.requestContext?.authorizer?.username;
     if (!username) return response(401, { msg: "認証が必要です" });
 
-    const race_id = event.queryStringParameters?.race_id;
-    if (!race_id) return response(400, { msg: "race_id は必須です" });
+    const access = await requireGeneralRace(event);
+    if (access.error) return access.error;
+    const race_id = access.raceId;
 
     const body = JSON.parse(event.body || "{}");
     const { carNum, reason } = body;
