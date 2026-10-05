@@ -29,8 +29,8 @@ export const handler = async (event) => {
     if (!todayId) {
       return response(400, { msg: "大会IDは必須です" });
     }
-    if (!/^[A-Za-z0-9\-_!]{15,}$/.test(todayId)) {
-      return response(400, { msg: "大会IDは半角英数字と記号(-_!)で15文字以上です" });
+    if (!/^[A-Za-z0-9]{15,}$/.test(todayId)) {
+      return response(400, { msg: "大会IDは半角英数字で15文字以上です" });
     }
 
     // ── RaceTable を TodayIdIndex で照合（02章§1。Scanから変更） ──

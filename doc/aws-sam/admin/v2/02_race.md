@@ -119,7 +119,7 @@ race に属するデータ（entry / start_driver / pit_assignment）と race �
 | 形             | ULID（`layers/common/nodejs/dynamodb.js` の `generateId()`。pit_log / pit_log_history / outpost_log と同じ形式） | 17文字。紛らわしい文字（`0`/`O`、`1`/`l`/`I`）を除いた英数字                   |
 | タイトルの流用 | しない                                                                                                        | **しない**（今の実装は先頭にタイトルの文字が入り、推測の手がかりになる）       |
 | 一意の保証     | 保存時の条件付き書き込み                                                                                     | `TodayIdIndex` での確認                                                        |
-| 使う場所       | 各APIの `race_id`（署名付きトークンに埋め込んで渡す。[raceIdToken.md](../../../IF/raceIdToken.md)）                | conform の大会ID入力（手で打つ。既存の形式 `^[A-Za-z0-9\-_!]{15,}$` を満たす） |
+| 使う場所       | 各APIの `race_id`（署名付きトークンに埋め込んで渡す。[raceIdToken.md](../../../IF/raceIdToken.md)）                | conform の大会ID入力（手で打つ。既存の形式 `^[A-Za-z0-9]{15,}$` を満たす。2026-10-05に記号(`-_!`)の受け入れを廃止し生成側と揃えた） |
 
 ## 3. 一覧: `GET /admin/race`
 
