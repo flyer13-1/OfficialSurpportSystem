@@ -14,13 +14,15 @@ export const handler = async (event) => {
   try {
     const username = event.queryStringParameters?.username;
 
-    // ── バリデーション（register.mjs と同一ルール）──
+    // ── バリデーション（register.mjs と同一ルール。3〜20文字）──
+    // ここだけ厳しいと、フロントを通った担当者名が signUp より手前で弾かれる。
+    // 規則を変えるときは register.mjs と regist.html の3箇所を必ず揃える。
     if (!username) {
       return response(400, { msg: "担当者名は必須です" });
     }
-    if (!/^[ぁ-んァ-ヶ一-鿿㐀-䶿]{6,20}$/.test(username)) {
+    if (!/^[ぁ-んァ-ヶ一-鿿㐀-䶿]{3,20}$/.test(username)) {
       return response(400, {
-        msg: "担当者名はひらがな・カタカナ・漢字で6〜20文字です",
+        msg: "担当者名はひらがな・カタカナ・漢字で3〜20文字です",
       });
     }
 

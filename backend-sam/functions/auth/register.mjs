@@ -31,9 +31,10 @@ export const handler = async (event) => {
     ) {
       return response(400, { msg: "担当者名・sub・サーキットは必須です" });
     }
-    if (!/^[ぁ-んァ-ヶ一-鿿㐀-䶿]{4,20}$/.test(username)) {
+    // 3〜20文字。checkUsername.mjs と regist.html の3箇所を必ず揃える（regist.md）。
+    if (!/^[ぁ-んァ-ヶ一-鿿㐀-䶿]{3,20}$/.test(username)) {
       return response(400, {
-        msg: "担当者名はひらがな・カタカナ・漢字で4〜20文字です",
+        msg: "担当者名はひらがな・カタカナ・漢字で3〜20文字です",
       });
     }
     const circuitNum = Number(circuit);
