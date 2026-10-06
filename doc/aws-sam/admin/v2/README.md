@@ -31,14 +31,39 @@
 | 03 | [03_race_data.md](03_race_data.md) | race に属するデータ（entry / start_driver / pit_assignment）の登録・確認・変更と、race の削除の扱い | 確定（2026-09-30） |
 | 04 | [04_pitlog.md](04_pitlog.md) | pitlog の参照・ダウンロード（管理者画面・一般画面 共通） | 確定（2026-10-02） |
 
-**全4章が確定。** 次は実装フェーズ（各章の「確定後に更新するもの」を参照）。
+**全4章が確定。** 実装は01〜03章がフロント・バックエンドとも完了し、**残っているのは04章（pitlog）の管理者向け参照のみ**（2026-10-05時点）。詳しい残件は[下記](#実装の残件2026-10-05時点)。
 
 章は、データ・API・画面の層ごとではなく、対象（race、race 配下のデータ、pitlog）ごとに区切る。各章の中で、フロントの表示とバックエンドの処理を一緒に決める。
+
+## 実装の残件（2026-10-05時点）
+
+nextJob.md の最後の節「結果を見るページ」に当たる部分。**着手順は 1 → 2。**
+
+| # | 残件 | 内容 | 状況 |
+|---|---|---|---|
+| 1 | `showAllGimic.js` の共通部品化 | トップレベルの `getElementById` / `querySelector("tbody")`、グローバル `entries` の直読み、トップレベルの `addEventListener` を取り除き、`filterAndSortPitLogs(logs, {className, search})` と `renderPitLogTable(tbody, logs)` に引数で渡す形にする。イベントの紐付けは各画面（`showAll.js` / `outPosts.js` / 管理者ポップアップ）に移す（04章§4.1・§4.2） | 保留中（時間をかけて行う） |
+| 2 | 管理者ポップアップ | `showAll.mjs` に leader 分岐（平文 raceId の受付・サーキット照合・終了済みでも許可）を追加し、admin.html にモーダル・表・CSV/PDFボタンを作る（04章§3.3・§4.2・§6） | 保留中（1の完了が前提） |
+
+**04章§4.1 の6つの問題のうち、#4〜#6（`colSpan=12` の固定、`pitNum` 優先のソート、`managerId` の `NaN` 比較）は 2026-10-04 に解消済み。** 残りは #1〜#3（DOM決め打ちとグローバル変数）。
+
+**別件で残っているもの**
+
+- 入力画面（enter系）の送信失敗時の一時保存とその消去、送信成否の表示の土台。未設計。
+- `backend-sam/local-server/server.mjs` が古く、**現状そのままでは動かない**（`functions/race/*.mjs` を import しているが、これらは `functions/admin/` に移動して存在しない。パスも旧 `/race`・`?race_id=` 方式で、`/admin/*` のルートも raceToken 対応も無い）。ローカル実行を再び使うなら全ルートの作り直しが必要。
 
 ## 確定事項ログ
 
 | 日付 | 決定 | 内容 |
 |---|---|---|
+| 2026-10-05 | 03章§5: race 削除の実装 | `raceDelete.mjs` を§5準拠に書き換え。**`requireRace` によるサーキット照合を追加**（それまで `requireAdmin` だけで対象raceの `organization_id` を見ておらず、entry が0件なら他サーキットのレースも削除できた）。あわせて `X-Race-Id` ヘッダー方式に変更（`template.yaml` の Path を `/admin/race/{id}` → `/admin/race`、01章R10）、`pit_assignment` の後始末を追加（§5.3。`pit_assignment` → race の順に消す）。フロントの `adminRace.js` の削除ボタンも追従。IAM権限は既存の `RaceDataLambdaRole` で充足 |
+| 2026-10-05 | 03章§3.6: start_driver の変更を一般利用者に開放 | **start_driver は一般利用者に変更を認める例外とする**（当初の「登録のみ、変更・削除は管理者限定」から変更）。枠を間違えて登録したときに担当者自身が直せないと、レース当日の進行に間に合わないため。変更できる範囲は登録と同じ（自分の担当エリア内の車両・entry にある非null の枠）で影響範囲は変わらない。**削除は認めない**（設定漏れ対策という本画面の目的と逆行するため）。実装は `PUT /entries/start-driver`（`functions/entry/startDriverUpdate.mjs`）として2026-10-04に完了済みで、今回設計書を追従させた |
+| 2026-10-05 | 迷子 gitlink の整理 | バックエンドリポジトリの `html` は、最初の `awsのsam作成` コミット時にフロントのクローンが gitlink（mode 160000）として記録されただけのもの。`.gitmodules` が無くサブモジュールとして設定されておらず、中身も入っていない（ディスク上も空）。`git rm --cached html` でインデックスから削除した。**フロントは別リポジトリ `htmls` として管理する**（バックエンドリポジトリには含めない） |
+| 2026-10-04 | 一般向けAPIの raceId トークン一括移行（完了） | 2026-10-03の時点で「後日一括移行」としていた [raceIdToken.md](../../../IF/raceIdToken.md) §8 を完了。**一般向けAPI（pitlog系7本・`init`・`POST`/`PUT /entries/start-driver`）がすべて `X-Race-Id` の署名付きトークン方式になり、`race_id` クエリパラメータは廃止。** 入口は共通処理 `raceToken.js` の `requireGeneralRace`（トークンの期限切れ＝終了済みとして403 `race_finished` を返すため、終了判定が別途不要になった）。フロント側も全画面が `X-Race-Id` でトークンを送る形に切り替え済み |
+| 2026-10-04 | 04章: pitlog を設計準拠に（一般向けのみ） | `showAll.mjs` のデータ生成を共通レイヤー `pitLogs.js` の `buildPitLogs()` に切り出し、レスポンスを配列に変更、並び順を `inTime`（無ければ `outTime`）→ `carNum` の時刻順に修正、`OutpostLog` に `is_leader` を記録（§6）。`garageInTime` を全廃（既存データに値が無いことを確認済み。§2.5）。フロントは14列表示・`枠:氏名` 形式・出力を `.xls` → BOM付きCSV に変更（§4.3・§5）。**管理者向けの参照（ポップアップ・leader分岐）は未着手** |
+| 2026-10-04 | 02章: `status` に `upcoming` を追加 | レース一覧の `status` を3値（`active`/`lastDay`/`finished`）から**4値**にし、開催初日より前を `upcoming`（開催前）として返す。開催前のレースが開催中と同じ見た目で区別できなかったため。開催初日は `finish_date` からの推定（土日開催が基本なので、終了日が日曜なら前日の土曜を初日とみなす。`raceStatus.js` の `startDayOf`）。**終了判定には影響しない**（`status` は表示用で、アクセス可否は従来どおり `finish_date` のみで決まる） |
+| 2026-10-04 | `users`（担当者一覧）の提供元を変更 | pit_assignment の登録画面で使う担当者候補を、`GET /admin/race/data`（03章§1.2）から **`GET /admin/race`（02章§3）に移した**。担当者一覧はレースに依存しないデータなのに、`GET /admin/race/data` はレースを選んだ後でなければ呼べず、レース選択前に候補を出せなかったため |
+| 2026-10-04 | authorizer の依存解決 | `authorizer` が `aws-jwt-verify` を読めず `AuthorizerConfigurationException` になっていたため、`functions/auth/package.json` を置いて依存を明示した |
+| 2026-10-04 | フロント: admin画面の分割 | `admin.js` を `adminRace.js`（レース一覧・登録・変更・削除）/ `adminOther.js`（3テーブルの一括登録）/ `adminPreview.js`（プレビュー）/ `adminEdit.js`（一覧・変更・削除）に分割。サーキット一覧は `common.js` の `CIRCUIT_NAMES` に集約。`startDriver.html` / `startDriver.js` を新設し `main.html` から導線を張った（03章§3.6） |
 | 2026-09-28 | サーキットの扱い | `6:その他` と `7:無所属` も 1〜5 と同格の独立した区分。各サーキットの leader は自分のサーキットの race だけ見える・触れる |
 | 2026-09-28 | conform の入室 | 大会ID（`todayId`）での入室はサーキットで制限しない（他サーキットからの応援があるため） |
 | 2026-09-28 | サーキットの取得元 | 管理者APIは毎回 Users テーブルを `sub` で引いて確認する（トークンには載せない） |
@@ -81,4 +106,8 @@
 
 ## 04章に引き継ぐこと
 
-- 管理者向けの pitlog 参照API。`showAll.mjs` のデータ生成を共通の関数に切り出し、一般向け（終了済みは 403）と管理者向け（`requireAdmin` ＋ race の照合）の2つのハンドラから使う。表示するポップアップとダウンロードボタン（Excel と PDF）では、`showAll.js` / `showAllGimic.js` の表示処理を流用する際に、`entries` などのグローバル名が `admin.js` と衝突しないようにする
+データ生成の共通化（`buildPitLogs()`）と一般向けの対応は2026-10-04に完了した。**残っているのは管理者向けの参照だけ**（上記「実装の残件」の 1・2）。
+
+- 管理者向けの pitlog 参照は、**ハンドラを2本に分けず `GET /entries/show` 1本のまま**、呼び出し元が leader かどうかで分岐させる（04章§3.3の決定）。leader は平文の raceId を `X-Race-Id` で送る（管理者APIは raceId トークンの対象外。`raceToken.js` の冒頭コメント）。leader なら他サーキットは404・終了済みでも参照可、leader でなければ従来どおり終了済みは403
+- ポップアップとダウンロードボタン（**CSV と PDF**。Excel から変更済み）で `showAllGimic.js` の表示処理を流用するため、`entries` などのグローバル名が `admin.js` 系と衝突しないようにする（これが残件1の中身）
+- PDF は `window.print()` のままなので、ダイアログ以外を隠す印刷用CSSが別途必要になる

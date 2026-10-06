@@ -399,15 +399,25 @@ URL.revokeObjectURL(a.href);
 
 ## 7. 確定後に更新するもの
 
-- `layers/common/nodejs/`: `buildPitLogs(raceId)` を新設
-- [showAll.mjs](../../../../backend-sam/functions/pitlog/showAll.mjs): 共通関数の利用に置き換え、認可（§3.3）を追加、レスポンスを配列に変更、仮キーの無意味なコードを削除。**並び順を `inTime` → `carNum` に変更**（§2.4）
-- `showAllGimic.js`: DOM決め打ちとグローバル変数を排除し、引数で受け取る形に変更。**並べ替えを `inTime` → `carNum` に修正**（現行は `pitNum` 優先で時系列になっておらず、同時刻の比較も `NaN` で効いていない）
-- `showAll.js` / `outPosts.js`: 配列レスポンスに合わせる（`Object.keys()` の変換処理を削除）。`managerId` の受け渡しを削除。イベントの紐付けを自分の側に持つ
-- [showAll.md](../../../IF/showAll.md): レスポンス例を配列形式に更新し、`managerId` を削除（IF設計書の追従）
-- `admin.html` / `admin.js` / `admin.css`: ポップアップ、表、ダウンロードボタン
+**一般向け（2026-10-04実装済み）**
+
+- ~~`layers/common/nodejs/`: `buildPitLogs(raceId)` を新設~~ 実装済み（`pitLogs.js`）
+- ~~[showAll.mjs](../../../../backend-sam/functions/pitlog/showAll.mjs): 共通関数の利用に置き換え、レスポンスを配列に変更、仮キーの無意味なコードを削除。**並び順を `inTime` → `carNum` に変更**（§2.4）~~ 実装済み。**ただし認可（§3.3）の leader 分岐のみ未実装**（下記）
+- ~~`showAll.js` / `outPosts.js`: 配列レスポンスに合わせる（`Object.keys()` の変換処理を削除）。`managerId` の受け渡しを削除~~ 実装済み
+- ~~`outPosts.js`: Excel（SpreadsheetML）の組み立てを CSV に差し替え（BOM・エスケープに注意。§5.1）~~ 実装済み
+- ~~**`garageInTime` の全廃（§2.5）**~~ 実装済み（既存データに値が入った記録は無いことを確認済み）
+- ~~`showAllGimic.js`: **並べ替えを `inTime` → `carNum` に修正**、列定義（§4.3）を回して描く形に変更~~ 実装済み（`sortTimeOf` と `PIT_LOG_COLUMNS`。§4.1の問題#4〜#6が解消）
+
+**管理者向け（未実装。着手順は下記のとおり）**
+
+1. `showAllGimic.js`: DOM決め打ち（トップレベルの `getElementById` / `querySelector("tbody")`）とグローバル変数（`entries`）を排除し、引数で受け取る形に変更。トップレベルの `addEventListener` を各画面に移す（§4.2。§4.1の問題#1〜#3）
+2. [showAll.mjs](../../../../backend-sam/functions/pitlog/showAll.mjs): 認可の leader 分岐を追加（§3.3）。leader は平文 raceId を `X-Race-Id` で送るため、`requireGeneralRace` の前に分岐が必要
+3. `admin.html` / `admin.js` / `admin.css`: ポップアップ、表、ダウンロードボタン。PDF は `window.print()` のため、ダイアログ以外を隠す印刷用CSSも必要
+
+**設計書・DB定義の追従（未実施）**
+
+- [showAll.md](../../../IF/showAll.md): レスポンス例を配列形式に更新し、`managerId` を削除
 - [dynamodb-design.md](../../../database/dynamodb-design.md) / [SQLcode.sql](../../../database/SQLcode.sql): `outpost_log` に `is_leader` を追加（§6）
-- `outPosts.js`: Excel（SpreadsheetML）の組み立てを CSV に差し替え（BOM・エスケープに注意。§5.1）
-- **`garageInTime` の全廃（§2.5）**: `enterHand.js` の送信、`autoCreate.mjs` / `handCreate.mjs` のバリデーションと保存、`updatePut.mjs` の受付、`showAll.js` / `outPosts.js` の受け取り、`SQLcode.sql` / `dynamodb-design.md` の列定義と A/B/C 検証ルール、IF設計書5本。既存データに値が入った記録があるかの確認も必要
 
 ## 8. 決定事項
 

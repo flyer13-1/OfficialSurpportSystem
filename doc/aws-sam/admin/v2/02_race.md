@@ -136,15 +136,25 @@ race に属するデータ（entry / start_driver / pit_assignment）と race �
       "status": "active",
       "todayId": "K7mPq3TnW2vXzR8sH"
     }
+  ],
+  "users": [
+    { "username": "あそう太郎", "organizationId": 1 },
+    { "username": "かんざきあおい", "organizationId": 3 }
   ]
 }
 ```
 
-| `status`   | 意味                   | `todayId`    |
-| ---------- | ---------------------- | ------------ |
-| `active`   | 開催中（終了日より前） | 返す         |
-| `lastDay`  | 本日が終了日           | 返す         |
-| `finished` | 終了済み               | **返さない** |
+**`users`（2026-10-04追加）:** 登録済みの担当者の一覧。pit_assignment の登録画面で担当者の候補に使う。レースに依存しないデータであり、レース選択の前から候補を出したいため、当初置いていた `GET /admin/race/data` からこちらに移した（03章 §1.2 に経緯と仕様）。全サーキット分を返す。
+
+| `status`   | 意味                                   | `todayId`    |
+| ---------- | -------------------------------------- | ------------ |
+| `upcoming` | 開催前（本日が開催初日より前）         | 返す         |
+| `active`   | 開催中（開催初日〜終了日の前日）       | 返す         |
+| `lastDay`  | 本日が終了日                           | 返す         |
+| `finished` | 終了済み                               | **返さない** |
+
+- **`upcoming` は 2026-10-04 に追加した（4値目）。** 開催初日より前のレースを一覧で見分けられるようにするため。**開催初日は `finish_date` から推定する**（基本は土日開催のため、終了日が日曜なら前日の土曜を初日とみなし、それ以外は終了日そのものを初日とする。`raceStatus.js` の `startDayOf`）。木・金の練習走行も `upcoming` に含まれる。登録時に開催初日を持たせていないための推定であり、表示上の目安として例外は許容する。
+- **終了判定（`isRaceFinished`）は `upcoming` の追加に影響されない。** `status` は表示用で、アクセスの可否は従来どおり `finish_date` だけで決まる。
 
 - `status` は DynamoDB には保存しない。`GET /admin/race` が呼ばれるたびに、Lambda が `finish_date` と現在時刻（JSTに直したもの）を比べてその場で計算する（01章 §5.3）。事前に計算して保存する方式だと、日付が変わる瞬間に書き換えるバッチ処理が別途必要になり、失敗・遅延でズレる恐れがあるため採らない。画面はクライアントの時計で判定しない。
 - 0件のときは `races: []`。
@@ -202,7 +212,7 @@ race に属するデータ（entry / start_driver / pit_assignment）と race �
 | 本日終了 | 通常（開催中と同じ。特別な印は付けない） | 使える   | 使える                                   | 見られる   |
 | 終了済み | 薄い表示＋「終了済み」の印 | **無効** | **使える（参照・ダウンロードとも）**     | 見られない |
 
-`status`（`active` / `lastDay` / `finished`）はAPIレスポンスとしては3値のまま返す（大会IDを返すかどうかの判定に使うため）。見た目上は `active` と `lastDay` を区別しない。
+`status`（`upcoming` / `active` / `lastDay` / `finished`）はAPIレスポンスとしては4値を返す（大会IDを返すかどうかの判定に使うため）。見た目上は `active` と `lastDay` を区別しない。`upcoming` は開催前であることが分かるように表示する（2026-10-04追加。§3）。
 
 - 無効にするのは見た目だけで、判定はサーバー（403）。
 - 削除ボタンの扱いは、配下データとの関係があるため03章で決める。
@@ -213,8 +223,8 @@ race に属するデータ（entry / start_driver / pit_assignment）と race �
 - [template.yaml](../../../../backend-sam/template.yaml): RaceTable の索引と、conform の Scan → `TodayIdIndex` への変更に伴う権限
 - [SQLcode.sql](../../../database/SQLcode.sql): 項目の整合
 - 既存の race（例 `2026test_race`）は `raceId` が推測しやすいので、作り直す
-- サーキット名の対応表（1〜7）は conform.js と admin.js で使うため、common.js に置く
-- `DELETE /admin/race`（race 削除。方針は03章 §5）は、`raceId` をパスパラメータに含めず、`X-Race-Id` ヘッダーで送る形にする（01章 R10）
+- ~~サーキット名の対応表（1〜7）は conform.js と admin.js で使うため、common.js に置く~~ 実装済み（`common.js` の `CIRCUIT_NAMES`）
+- ~~`DELETE /admin/race`（race 削除。方針は03章 §5）は、`raceId` をパスパラメータに含めず、`X-Race-Id` ヘッダーで送る形にする（01章 R10）~~ 実装済み（2026-10-05。`raceDelete.mjs` をヘッダー方式に書き換え、`template.yaml` の Path を `/admin/race` に変更、フロントの `adminRace.js` も追従）
 
 ## 7. 未決事項
 
@@ -226,4 +236,8 @@ race に属するデータ（entry / start_driver / pit_assignment）と race �
 - 開催日（開始日）は持たない。`finish_date` は操作をロックする目的（01章 R7・終了判定）のためだけに使うため、`finish_date` だけで足りる。
 - `OrganizationIndex` の RANGE は `finish_date` のままとする。文字列 `YYYY-MM-DD` は大小比較がそのまま日付順になるため、追加コストなしで終了日順の一覧が得られる（§1 参照）。
 - 一覧の並び順は §3 に記載のとおり（開催中を上・終了済みを下、それぞれ終了日の新しい順）で変更しない。
-- 「本日終了」の特別な印は付けない。`status` はAPIレスポンスとしては3値のまま返すが、見た目は開催中と同じにする（§5）。
+- 「本日終了」の特別な印は付けない。`status` はAPIレスポンスとしては返すが、見た目は開催中と同じにする（§5）。
+
+### 2026-10-04
+
+- **`status` に `upcoming`（開催前）を追加し、4値にした。** 開催初日より前のレースが一覧で開催中と同じ見た目になり区別できなかったため。開催初日は `finish_date` からの推定（§3）。終了判定には影響しない。

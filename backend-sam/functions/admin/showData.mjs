@@ -4,11 +4,12 @@ import { requireAdmin } from "/opt/nodejs/admin.js";
 import { requireRace } from "/opt/nodejs/raceAccess.js";
 
 /**
- * GET /admin/race/data — entry / start_driver / pit_assignment / users 統合一覧
+ * GET /admin/race/data — entry / start_driver / pit_assignment 統合一覧
  * IF設計書: doc/aws-sam/admin/v2/03_race_data.md §1.2
  *
  * 個別に3本（entry / start_driver / pit_assignment）の一覧APIを持つ代わりに、
  * 1本にまとめて返す。requireAdmin + race照合は1回だけで済む。
+ * users（担当者の候補）はレースに依存しないため GET /admin/race が返す（§1.2）。
  * 参照系のため、終了済みの race でも許可する（write指定なし＝§1のR7と同じ考え方）。
  */
 export const handler = async (event) => {
