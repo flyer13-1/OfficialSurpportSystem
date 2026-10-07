@@ -28,9 +28,12 @@ export const handler = async (event) => {
       }),
     );
 
+    // users に登録が無い利用者は 403 ＋ reason: user_not_found
+    // （01章§6 の403の表。管理者向けの requireAdmin と同じ扱いに揃える）。
     if (!userResult.Item) {
-      return response(400, {
+      return response(403, {
         msg: "ユーザーが見つかりません",
+        reason: "user_not_found",
         username: "",
         circuit: "",
       });

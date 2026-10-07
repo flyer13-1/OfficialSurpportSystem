@@ -11,7 +11,7 @@
 | ---------------------- | ------------------------------------------------------------ | ---------------------------------------- |
 | LambdaExecutionRole    | 全Lambda共通ロール。DynamoDB全操作を許可                    | 左記の専用ロール以外の全Function |
 | AuthLambdaRole         | 登録前後で担当者名を扱う未認証系Function専用。最小権限ロール | RegisterFunction / CheckUsernameFunction |
-| ConformLambdaRole      | 大会ID照会専用。RaceTableの参照(Scan)のみ許可の最小権限ロール | ConformFunction（POST /user/me） |
+| ConformLambdaRole      | 大会ID照会専用。`TodayIdIndex`のQueryと署名鍵(SSM)の読み取りのみ許可の最小権限ロール | ConformFunction（POST /user/me） |
 | ProfileLambdaRole      | プロフィール取得専用。UsersTableの参照(GetItem)のみ許可の最小権限ロール | ProfileFunction（GET /user/me） |
 
 ---
@@ -55,8 +55,12 @@ Cognito側にユーザーが残る「孤児アカウント」が発生し得る�
 signUpの間には短いレースコンディションが残るため、最終的な重複防止は引き続き
 RegisterFunction側の`Scan`チェック（register.mjs参照）が担う。
 
-UsersTableのPKは`cognito_sub`（GSIはusernameに未設定）のため、空き確認は`GetItem`ではなく
-`Scan`＋`FilterExpression`で行っている（conform.mjsのRaceTable検索と同じ方式）。
+UsersTableのPKは`cognito_sub`のため、空き確認は`GetItem`ではなく
+`Scan`＋`FilterExpression`で行っている。
+（かつては「conform.mjsのRaceTable検索と同じ方式」と書いていたが、conform側は02章の実装で
+`TodayIdIndex`のQueryに変わったため §3.2 を参照。こちらは今も`Scan`のまま。
+なお `UsersTable` には03章§4.2で `UsernameIndex` を追加済みで、pit_assignment の
+登録済み確認はそちらを使う。空き確認を索引に寄せるかは別途判断。）
 RegisterFunction側の重複チェックも同じ理由で`Scan`方式に変更済み（PKがcognito_subのため、
 PutItemの`ConditionExpression`だけでは担当者名の重複を検出できない）。
 
@@ -80,16 +84,21 @@ PutItemの`ConditionExpression`だけでは担当者名の重複を検出でき�
 ### 3.1 追加理由
 
 ConformFunction（`POST /user/me`、大会ID照会）はRaceTableから`today_id`が一致するレースを
-探して`raceId`を返すだけの処理で、書き込みや他テーブルへのアクセスは不要。
+探して`raceToken`を返すだけの処理で、書き込みや他テーブルへのアクセスは不要。
 LambdaExecutionRole（全テーブル全操作）を使う必要がないため、最小権限の専用ロールに分離した。
 
-### 3.2 付与権限
+### 3.2 付与権限（2026-10-07更新）
 
-| テーブル  | 許可アクション   | 理由                                                             |
-| --------- | ---------------- | ---------------------------------------------------------------- |
-| RaceTable | `dynamodb:Scan`  | `today_id`での照合（conform.mjsが`ScanCommand`＋`FilterExpression`を使用） |
+| 対象                         | 許可アクション       | 理由                                                                                      |
+| ---------------------------- | -------------------- | ----------------------------------------------------------------------------------------- |
+| `RaceTable/index/TodayIdIndex` | `dynamodb:Query`     | `today_id`での照合。**02章の実装で Scan + FilterExpression から GSI の Query に変更した** |
+| SSM `race-token-secret`        | `ssm:GetParameter`   | `raceToken` の署名鍵の読み取り（[raceIdToken.md](../IF/raceIdToken.md) §6）                |
 
-- 読み取り専用（Put/Update/Delete等は付与しない）。`Resource`はRaceTableのARNのみ
+- 読み取り専用（Put/Update/Delete等は付与しない）。
+- **`Resource` は RaceTable 本体ではなく `TodayIdIndex` のARNのみ。** 索引経由の Query しか
+  行わないため、テーブル本体への GetItem / Scan は付与しない。
+- 署名鍵は `SecureString` のため `WithDecryption: true` で取得する。ポリシー名は
+  `RaceTokenSecretReadPolicy`（RaceDataLambdaRole にも同じものがある）。
 - `ManagedPolicyArns`は`AWSLambdaBasicExecutionRole`のみ（他ロールと同一）
 
 ### 3.3 定義箇所

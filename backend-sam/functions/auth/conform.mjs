@@ -10,10 +10,12 @@ import { finishBoundaryEpochSec, isRaceFinished } from "/opt/nodejs/raceStatus.j
  * X-Race-Id ヘッダーで渡す）。raceId 自体はもう返さない（raceIdToken.md §4）。
  */
 
-// finish_date を持たない古いレース（02章のレース登録実装前のテストデータ）向けの
-// 暫定フォールバック。02章の実装後に作られたレースは全て finish_date を持つため、
-// この分岐はいずれ使われなくなる。
-const FALLBACK_EXP_SECONDS = 24 * 60 * 60; // 24時間
+// finish_date が無いレースへの安全策（2026-10-07決定。doc/IF/raceIdToken.md §7）。
+// 02章§2 で finishDate は必須のため本来起こらないが、データの欠損・改ざんで
+// 消えた場合に期限の無いトークンを出さないようにする。
+// 2時間だけ有効にし、超過後は exp 切れ＝終了済み（403 race_finished）として扱われる。
+// あわせてレスポンスに warning を付け、画面で管理者への連絡を促す。
+const MISSING_FINISH_DATE_EXP_SECONDS = 2 * 60 * 60; // 2時間
 
 export const handler = async (event) => {
   try {
@@ -49,19 +51,34 @@ export const handler = async (event) => {
 
     const race = result.Items[0];
 
+    const hasFinishDate = Boolean(race.finish_date);
+
     // ── 終了済みレースの判定（01章§5.4・§1） ──
-    if (race.finish_date && isRaceFinished(race.finish_date)) {
+    if (hasFinishDate && isRaceFinished(race.finish_date)) {
       return response(403, { msg: "終了したレースです", reason: "race_finished" });
     }
 
-    const exp = race.finish_date
+    if (!hasFinishDate) {
+      // 本来あり得ない状態なので、調査できるようログに残す。
+      console.warn(
+        `[conform] finish_date missing: raceId=${race.id} todayId=${todayId}`
+      );
+    }
+
+    const exp = hasFinishDate
       ? finishBoundaryEpochSec(race.finish_date)
-      : Math.floor(Date.now() / 1000) + FALLBACK_EXP_SECONDS;
+      : Math.floor(Date.now() / 1000) + MISSING_FINISH_DATE_EXP_SECONDS;
 
     // ── raceId トークンを発行する（raceIdToken.md §3・§4） ──
     const raceToken = await issueRaceToken({ raceId: race.id, sub, exp });
 
-    return response(200, { msg: "", raceToken });
+    // msg は空のまま返す（フロントの handleApiError が非空の msg をエラー扱いするため）。
+    // 終了日が無い異常時だけ warning を足し、画面側で管理者への連絡を促させる。
+    return response(200, {
+      msg: "",
+      raceToken,
+      ...(hasFinishDate ? {} : { warning: "finish_date_missing" }),
+    });
   } catch (err) {
     console.error("conform error:", err);
     return response(500, { msg: "サーバーエラーが発生しました" });

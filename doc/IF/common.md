@@ -107,6 +107,18 @@
 ヘッダーの `#logoutBtn`（admin / main / conform 共通）には `common.js` が自動で紐付ける。
 各画面のJSで登録する必要はない。
 
+**ログアウトボタンはヘッダーに置く。** 3画面とも `<header>` の中で、
+`a_css/common.css` が右端に絶対配置する。
+
+- **位置の指定は `header #logoutBtn` にスコープしてある**（2026-10-07）。
+  以前は `#logoutBtn` に直接 `position: absolute` を当てていたため、ボタンを
+  ヘッダーの外に移すと絶対配置が付いてきて画面に浮いた。打ち消すために移動先の
+  CSS で `position: static` を書く必要があり、置き場所を変えるたびに追従が要る形だった。
+- 見た目（色・余白・角丸）は `#logoutBtn` のままなので、どこに置いても同じ。
+- **狭い画面用の媒体クエリも `header #logoutBtn` で書くこと。**
+  `#logoutBtn` だけだと詳細度が低く（IDセレクタ1つ 対 ID＋要素）、
+  絶対配置を打ち消せない。
+
 ### bfcache ガード（`pageshow`）
 
 戻る／進むでブラウザキャッシュ（bfcache）から復元されたとき、`token` が無ければログイン画面へ
