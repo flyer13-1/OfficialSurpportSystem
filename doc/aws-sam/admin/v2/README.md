@@ -88,6 +88,7 @@ nextJob.md の最後の節「結果を見るページ」に当たる部分。**�
 | 2026-10-03 | 03章: pit_assignment のバックエンド実装 | `pitAssignmentBulk.mjs`/`pitAssignmentUpdate.mjs`/`pitAssignmentDelete.mjs`を新設（§4.3・§4.4。以前はAPIが全く無かった）。`UsersTable`に`UsernameIndex`（HASH `username`）を追加し、「登録済み利用者か」の確認を実装（`usersAccess.js`）。「担当エリアがentryに存在するか」の確認は`pitAssignmentAccess.js`に追加（`getEntryAreaNumbers`/`overlapsEntryAreas`、bulk登録時にentryを1回だけ取得して使い回す）。変更はSKが変わるため削除＋作成のトランザクションとして実装。これで03章のバックエンド(entry/start_driver/pit_assignment)は全て実装済み。残りは§1.2（`GET /admin/race/data`）とフロント |
 | 2026-10-03 | 03章: §1.2 統合一覧APIの実装 | `functions/admin/showData.mjs`を新設（`GET /admin/race/data`）。entry/start_driver/pit_assignmentを`race_id`でQueryし、usersは全サーキット分を`UsersTable`からScanして返す。requireAdmin+race照合（終了済みでも許可）は1回だけ。`RaceDataLambdaRole`に`UsersTable`のScan権限を追加。**これで03章のバックエンドは全て実装完了**。残るはフロント（`admin.js`・`admin.html`）のみ |
 | 2026-10-02 | `pitNum` の改名 | **改名しない。** `pit_count` を検討したが7ファイル以上に及ぶため見送り。名前の紛らわしさ（`pit_num`＝回数 / `pit_garage`・`maintenance_area`＝場所）は設計書への明記で補う（04章 §8） |
+| 2026-10-07 | レース変更画面の「表示と検索」 | 03章 §1.3 を追加。表示中の3表を横断して部分一致で絞り込む（フロントのみ・API追加なし）。複数語はAND、ひらがな・カタカナ・全角半角・大文字小文字は区別しない、検索語は保持しない。一致ゼロの扱いは「該当なし」で対象表を全部隠す |
 | 2026-10-02 | 表示する列 | 14列（作業エリア・ゼッケン番号・担当者・リタイア・インドライバー・アウトドライバー・ピットイン・ピットアウト・ピットGAP・給油・タイヤ交換・クラス名・チーム名・備考） |
 | 2026-10-02 | ドライバーの表示 | 枠と氏名を `X:NAME` 形式（例 `A:あそう太郎`）で1列にまとめる。画面・ダウンロード共通（04章 §4.3） |
 | 2026-10-02 | PDF・エンドポイント名 | PDFは `window.print()` のまま。エンドポイントは `GET /entries/show` のまま変えない |
