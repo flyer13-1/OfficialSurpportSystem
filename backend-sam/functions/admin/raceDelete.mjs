@@ -1,4 +1,4 @@
-import { QueryCommand, DeleteCommand, BatchWriteCommand } from "@aws-sdk/lib-dynamodb";
+import { QueryCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient, Tables, response, getRaceIdHeader } from "/opt/nodejs/dynamodb.js";
 import { requireAdmin } from "/opt/nodejs/admin.js";
 import { requireRace } from "/opt/nodejs/raceAccess.js";
@@ -10,7 +10,11 @@ import { requireRace } from "/opt/nodejs/raceAccess.js";
  * raceId は X-Race-Id ヘッダーで受け取る（01章 R10。パスパラメータは使わない）。
  * 他サーキットのレースは 404（requireRace）。entry が1件でも紐付く場合は 409（§5.1）。
  * 削除に伴い、当該raceの pit_assignment も一緒に消す（§5.3。race が無くなれば意味を持たないため）。
+ * pit_assignment と race は1つの TransactWriteItems で消す（2026-10-08変更）。
  */
+
+// TransactWriteItems は1トランザクション100件まで（race 本体の1件を含む）。
+const MAX_TRANSACT_ITEMS = 100;
 export const handler = async (event) => {
   try {
     const auth = await requireAdmin(event);
@@ -57,22 +61,33 @@ export const handler = async (event) => {
       lastKey = page.LastEvaluatedKey;
     } while (lastKey);
 
-    // ── pit_assignment を消してから race を消す ──
-    // この順にするのは、途中で失敗しても race が残り、やり直せるようにするため
-    // （race を先に消すと、到達できない pit_assignment が残る）。
-    for (let i = 0; i < assignmentKeys.length; i += 25) {
-      const chunk = assignmentKeys.slice(i, i + 25); // BatchWriteItem は1リクエスト25件まで
-      await docClient.send(
-        new BatchWriteCommand({
-          RequestItems: {
-            [Tables.pitAssignment]: chunk.map((Key) => ({ DeleteRequest: { Key } })),
-          },
-        })
-      );
+    // ── pit_assignment と race を1つのトランザクションで消す ──
+    // 以前は BatchWriteItem で pit_assignment を消してから race を消していたが、
+    // BatchWriteItem は容量不足・スロットリング時に UnprocessedItems を正常応答として
+    // 返すため、戻り値を見ていないと「race は消えたのに到達できない pit_assignment が
+    // 残る」状態が起き得た（2026-10-08修正。一括登録と同じ問題）。
+    // TransactWriteItems なら全件成功か全件失敗のどちらかになる。
+    if (assignmentKeys.length + 1 > MAX_TRANSACT_ITEMS) {
+      return response(409, {
+        msg: "担当ピットの件数が多いため削除できません。先に担当ピットを減らしてください",
+      });
     }
 
     await docClient.send(
-      new DeleteCommand({ TableName: Tables.race, Key: { id: raceId } })
+      new TransactWriteCommand({
+        TransactItems: [
+          ...assignmentKeys.map((Key) => ({
+            Delete: { TableName: Tables.pitAssignment, Key },
+          })),
+          {
+            Delete: {
+              TableName:           Tables.race,
+              Key:                 { id: raceId },
+              ConditionExpression: "attribute_exists(id)",
+            },
+          },
+        ],
+      })
     );
 
     return response(200, { msg: "" });

@@ -7,7 +7,36 @@ import { docClient, Tables } from "/opt/nodejs/dynamodb.js";
  */
 
 /**
+ * 担当エリアの範囲として受け付ける最大の広さ（2026-10-08追加）。
+ * 桁の打ち間違い（"1-100000" など）をそのまま保存すると、以降 getAssignedEntries が
+ * 一般利用者のAPI呼び出しごとに巨大な配列を展開することになるため、入口で弾く。
+ */
+const MAX_AREA_SPAN = 200;
+
+/**
+ * 担当エリアの指定が正しい形かどうか（2026-10-08追加）。
+ * 受け付けるのは "5"（単体）と "5-10"（範囲）だけ。
+ * 範囲は 開始 <= 終了 で、広さが MAX_AREA_SPAN 以内であること。
+ *
+ * expandRange は不正な入力に対して空配列を返すため、それだけでは
+ * 「範囲が逆」と「エリアが存在しない」を区別できない。登録時の検証に使う。
+ */
+export function isValidAreaRange(rangeStr) {
+  const s = String(rangeStr).trim();
+  const m = s.match(/^(\d+)(?:-(\d+))?$/);
+  if (!m) return false;
+
+  const start = Number(m[1]);
+  const end   = m[2] === undefined ? start : Number(m[2]);
+  if (start <= 0 || end <= 0) return false;
+  if (start > end) return false;
+  return end - start + 1 <= MAX_AREA_SPAN;
+}
+
+/**
  * "5-10" → [5,6,7,8,9,10] に展開する。"7" のような単体数字はそのまま [7]。
+ * 形の検証は isValidAreaRange が担う（ここは保存済みの値を読む用途も兼ねるため、
+ * 不正な入力に対しては空配列を返すだけにしている）。
  */
 export function expandRange(rangeStr) {
   const parts = String(rangeStr).split("-");

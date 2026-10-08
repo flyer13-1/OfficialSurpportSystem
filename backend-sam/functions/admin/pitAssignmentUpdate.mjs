@@ -1,9 +1,9 @@
-import { TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
+import { QueryCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient, Tables, response, getRaceIdHeader } from "/opt/nodejs/dynamodb.js";
 import { requireAdmin } from "/opt/nodejs/admin.js";
 import { requireRace } from "/opt/nodejs/raceAccess.js";
 import { isRegisteredUsername } from "/opt/nodejs/usersAccess.js";
-import { getEntryAreaNumbers, overlapsEntryAreas } from "/opt/nodejs/pitAssignmentAccess.js";
+import { getEntryAreaNumbers, overlapsEntryAreas, isValidAreaRange } from "/opt/nodejs/pitAssignmentAccess.js";
 
 /**
  * PUT /admin/pit-assignment — 担当割り当て変更
@@ -31,6 +31,11 @@ export const handler = async (event) => {
       return response(400, { msg: "未入力の項目があります" });
     }
 
+    // 担当エリアの形（開始 <= 終了、範囲の広さに上限）を確認する
+    if (!isValidAreaRange(maintenanceArea)) {
+      return response(400, { msg: "担当エリアの指定が正しくありません（例: 5 または 5-10）" });
+    }
+
     if (!(await isRegisteredUsername(username))) {
       return response(400, { msg: "登録済みの監視員を指定してください" });
     }
@@ -38,6 +43,26 @@ export const handler = async (event) => {
     const entryAreaNumbers = await getEntryAreaNumbers(raceId);
     if (!overlapsEntryAreas(maintenanceArea, entryAreaNumbers)) {
       return response(400, { msg: "存在しないピット場所です" });
+    }
+
+    // ── 担当者を別の人に変える場合、その人が既に担当を持っていないか確認する ──
+    // 1つのレースで1人が持てる担当エリアは1つ（§4.1）。
+    if (username !== oldUsername) {
+      const existing = await docClient.send(
+        new QueryCommand({
+          TableName:                 Tables.pitAssignment,
+          KeyConditionExpression:    "race_id = :raceId",
+          FilterExpression:          "username = :username",
+          ExpressionAttributeValues: { ":raceId": raceId, ":username": username },
+          ProjectionExpression:      "username",
+          Limit:                     1,
+        })
+      );
+      if ((existing.Items || []).length > 0) {
+        return response(409, {
+          msg: "その担当者は既にこのレースで担当エリアを持っています",
+        });
+      }
     }
 
     const oldSk = `${oldUsername}#${oldMaintenanceArea}`;
