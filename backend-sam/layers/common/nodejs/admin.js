@@ -2,7 +2,7 @@ import { GetCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient, Tables, response } from "/opt/nodejs/dynamodb.js";
 
 /**
- * 管理者APIの認可（doc/IF/admin/v2/01_permission.md §4）。
+ * 管理者APIの認可（doc/aws-sam/admin/v2/01_permission.md §4）。
  * ログイン認証（Cognito）を通過した上で leader グループ所属を確認し、
  * UsersTable を cognito_sub で引いて実在確認と所属サーキットの取得を行う。
  *
