@@ -2,6 +2,7 @@ import { TransactWriteCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient, Tables, response, getRaceIdHeader } from "/opt/nodejs/dynamodb.js";
 import { requireAdmin } from "/opt/nodejs/admin.js";
 import { requireRace } from "/opt/nodejs/raceAccess.js";
+import { isPositiveInt } from "/opt/nodejs/entryAccess.js";
 
 /**
  * POST /admin/entry/bulk — エントリー一括登録
@@ -41,6 +42,13 @@ export const handler = async (event) => {
 
     if (!Array.isArray(entries) || entries.length === 0 || entries.some(hasMissingField)) {
       return response(400, { msg: "未入力の項目があります" });
+    }
+
+    if (entries.some((e) => !isPositiveInt(e.carNum))) {
+      return response(400, { msg: "車番は正の整数で指定してください" });
+    }
+    if (entries.some((e) => !isPositiveInt(e.maintenanceArea))) {
+      return response(400, { msg: "作業エリアは正の整数で指定してください" });
     }
 
     // ── リクエスト内の carNum 重複確認 ──

@@ -6,6 +6,16 @@
 
 const DRIVER_LETTERS = ["A", "B", "C", "D", "E", "F"];
 
+/**
+ * 車番・作業エリアが正の整数か（2026-10-08追加）。
+ * 検証せずに Number() した値を書き込むと、`"abc"` が NaN になって
+ * DynamoDB の書き込みで例外になり、400 のはずが 500 で返っていた。
+ */
+export function isPositiveInt(value) {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0;
+}
+
 /** `driver` が A〜F の1文字かどうか。 */
 export function isValidDriverLetter(driver) {
   return typeof driver === "string" && DRIVER_LETTERS.includes(driver.toUpperCase());
