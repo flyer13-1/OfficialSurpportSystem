@@ -1,5 +1,4 @@
-import { QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { docClient, Tables } from "/opt/nodejs/dynamodb.js";
+import { Tables, queryAll } from "/opt/nodejs/dynamodb.js";
 
 /**
  * 担当エリア（pit_assignment）に関する共通処理。
@@ -60,31 +59,28 @@ export function expandRange(rangeStr) {
  * @returns {Promise<object[]>} EntryTable のアイテム配列（担当エリア内の車両のみ）
  */
 export async function getAssignedEntries(username, raceId) {
-  const assignResult = await docClient.send(
-    new QueryCommand({
-      TableName:                 Tables.pitAssignment,
-      IndexName:                 "UsernameIndex",
-      KeyConditionExpression:    "username = :username",
-      FilterExpression:          "race_id = :raceId",
-      ExpressionAttributeValues: { ":username": username, ":raceId": raceId },
-    })
-  );
-  const assignments = assignResult.Items || [];
+  const assignments = await queryAll({
+    TableName:                 Tables.pitAssignment,
+    IndexName:                 "UsernameIndex",
+    KeyConditionExpression:    "username = :username",
+    FilterExpression:          "race_id = :raceId",
+    ExpressionAttributeValues: { ":username": username, ":raceId": raceId },
+  });
   if (assignments.length === 0) return [];
 
   const assignedNums = [
     ...new Set(assignments.flatMap((a) => expandRange(a.maintenance_area))),
   ];
 
-  const entryResult = await docClient.send(
-    new QueryCommand({
-      TableName:                 Tables.entry,
-      KeyConditionExpression:    "race_id = :raceId",
-      ExpressionAttributeValues: { ":raceId": raceId },
-    })
-  );
+  // 全件辿る。途中で止めると担当エリア内の車両が漏れ、
+  // その車両の操作が「担当エリア外です」(403) で弾かれてしまう
+  const entryItems = await queryAll({
+    TableName:                 Tables.entry,
+    KeyConditionExpression:    "race_id = :raceId",
+    ExpressionAttributeValues: { ":raceId": raceId },
+  });
 
-  return (entryResult.Items || []).filter((e) => {
+  return entryItems.filter((e) => {
     const entryNums = expandRange(e.maintenance_area);
     return entryNums.some((n) => assignedNums.includes(n));
   });
@@ -96,17 +92,13 @@ export async function getAssignedEntries(username, raceId) {
  * 複数件まとめて検証する場合に、entry を1回だけ取得して使い回せるようにしている。
  */
 export async function getEntryAreaNumbers(raceId) {
-  const entryResult = await docClient.send(
-    new QueryCommand({
-      TableName:                 Tables.entry,
-      KeyConditionExpression:    "race_id = :raceId",
-      ExpressionAttributeValues: { ":raceId": raceId },
-      ProjectionExpression:      "maintenance_area",
-    })
-  );
-  return new Set(
-    (entryResult.Items || []).flatMap((e) => expandRange(e.maintenance_area))
-  );
+  const entryItems = await queryAll({
+    TableName:                 Tables.entry,
+    KeyConditionExpression:    "race_id = :raceId",
+    ExpressionAttributeValues: { ":raceId": raceId },
+    ProjectionExpression:      "maintenance_area",
+  });
+  return new Set(entryItems.flatMap((e) => expandRange(e.maintenance_area)));
 }
 
 /**

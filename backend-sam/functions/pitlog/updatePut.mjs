@@ -1,5 +1,11 @@
 import { QueryCommand, UpdateCommand, PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
-import { docClient, Tables, response, generateId } from "/opt/nodejs/dynamodb.js";
+import {
+  docClient,
+  Tables,
+  response,
+  generateId,
+  queryAll,
+} from "/opt/nodejs/dynamodb.js";
 import { requireGeneralRace } from "/opt/nodejs/raceToken.js";
 import { findUnassignedCars } from "/opt/nodejs/pitAssignmentAccess.js";
 import { isPositiveInt } from "/opt/nodejs/entryAccess.js";
@@ -52,24 +58,22 @@ export const handler = async (event) => {
       const pitNum = Number(when);
 
       // pit_num で対象レコードを検索
-      const pitResult = await docClient.send(
-        new QueryCommand({
-          TableName:                 Tables.pitLog,
-          KeyConditionExpression:    "race_id = :race_id",
-          FilterExpression:          "car_num = :car_num AND pit_num = :pit_num",
-          ExpressionAttributeValues: {
-            ":race_id":  race_id,
-            ":car_num":  car_num,
-            ":pit_num":  pitNum,
-          },
-        })
-      );
+      const pitItems = await queryAll({
+        TableName:                 Tables.pitLog,
+        KeyConditionExpression:    "race_id = :race_id",
+        FilterExpression:          "car_num = :car_num AND pit_num = :pit_num",
+        ExpressionAttributeValues: {
+          ":race_id":  race_id,
+          ":car_num":  car_num,
+          ":pit_num":  pitNum,
+        },
+      });
 
-      if (!pitResult.Items || pitResult.Items.length === 0) {
+      if (pitItems.length === 0) {
         return response(400, { msg: "対象のピット記録が見つかりません" });
       }
 
-      const targetLog = pitResult.Items[0];
+      const targetLog = pitItems[0];
 
       // 送信されたフィールドだけ動的に UpdateExpression を組み立てる
       const exprParts = ["updated_at = :now"];

@@ -1,5 +1,4 @@
-import { QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { docClient, Tables } from "/opt/nodejs/dynamodb.js";
+import { Tables, queryAll } from "/opt/nodejs/dynamodb.js";
 
 /**
  * race のピット記録を、画面・出力で使う配列にまとめる。
@@ -9,15 +8,14 @@ import { docClient, Tables } from "/opt/nodejs/dynamodb.js";
  * inDriver / outDriver を決めてから、最後に時刻順（inTime ?? outTime → carNum）へ並べ替える。
  */
 
+// 1レース分を全件取得する（queryAll が最後のページまで辿る。表やCSVから
+// 記録が落ちないよう、件数に依存しないようにしている）
 async function queryByRace(tableName, raceId) {
-  const result = await docClient.send(
-    new QueryCommand({
-      TableName: tableName,
-      KeyConditionExpression: "race_id = :race_id",
-      ExpressionAttributeValues: { ":race_id": raceId },
-    })
-  );
-  return result.Items || [];
+  return queryAll({
+    TableName: tableName,
+    KeyConditionExpression: "race_id = :race_id",
+    ExpressionAttributeValues: { ":race_id": raceId },
+  });
 }
 
 function driverName(entry, slot) {

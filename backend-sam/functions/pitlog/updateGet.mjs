@@ -1,5 +1,5 @@
-import { QueryCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
-import { docClient, Tables, response } from "/opt/nodejs/dynamodb.js";
+import { GetCommand } from "@aws-sdk/lib-dynamodb";
+import { docClient, Tables, response, queryAll } from "/opt/nodejs/dynamodb.js";
 import { requireGeneralRace } from "/opt/nodejs/raceToken.js";
 import { findUnassignedCars } from "/opt/nodejs/pitAssignmentAccess.js";
 
@@ -27,15 +27,12 @@ export const handler = async (event) => {
     }
 
     // ── PitLogTable から race_id + car_num でフィルタ ──
-    const pitResult = await docClient.send(
-      new QueryCommand({
-        TableName:                 Tables.pitLog,
-        KeyConditionExpression:    "race_id = :race_id",
-        FilterExpression:          "car_num = :car_num",
-        ExpressionAttributeValues: { ":race_id": raceId, ":car_num": car_num },
-      })
-    );
-    const pitLogs = pitResult.Items || [];
+    const pitLogs = await queryAll({
+      TableName:                 Tables.pitLog,
+      KeyConditionExpression:    "race_id = :race_id",
+      FilterExpression:          "car_num = :car_num",
+      ExpressionAttributeValues: { ":race_id": raceId, ":car_num": car_num },
+    });
 
     // ── EntryTable から className / teamName を取得 ──
     const entryResult = await docClient.send(

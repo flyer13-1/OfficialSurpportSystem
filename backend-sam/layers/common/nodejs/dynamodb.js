@@ -1,5 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 
 // DynamoDB クライアント（シングルトン）
 const clientConfig = {
@@ -33,6 +33,30 @@ export const Tables = {
   retire:         process.env.RETIRE_TABLE,
   outpostLog:     process.env.OUTPOST_LOG_TABLE,
 };
+
+/**
+ * Query を最後のページまで辿って、全アイテムを返す。
+ *
+ * DynamoDB の Query は1回で最大1MB分しか返さず、続きは LastEvaluatedKey で辿る。
+ * 一般向けAPIは「1レース分は1ページに収まる」前提で書かれていたが、その前提は
+ * どこにも書かれておらず、件数が増えると**黙って一部だけで処理する**。
+ * 具体的には pit_num の最大値が巻き戻って回数が重複し、表やCSVから記録が落ちる。
+ *
+ * Limit は渡さない。Limit は「フィルタ前に評価する件数」の上限なので、
+ * FilterExpression と併用すると取りこぼす（03章§2.5・§4.4 で踏んだ問題）。
+ */
+export async function queryAll(params) {
+  const items = [];
+  let lastKey;
+  do {
+    const page = await docClient.send(
+      new QueryCommand({ ...params, ExclusiveStartKey: lastKey })
+    );
+    items.push(...(page.Items || []));
+    lastKey = page.LastEvaluatedKey;
+  } while (lastKey);
+  return items;
+}
 
 /**
  * TransactWriteItems の1トランザクションあたりの上限（DynamoDBの制限）。

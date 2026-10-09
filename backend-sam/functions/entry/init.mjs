@@ -1,5 +1,4 @@
-import { QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { docClient, Tables, response } from "/opt/nodejs/dynamodb.js";
+import { Tables, response, queryAll } from "/opt/nodejs/dynamodb.js";
 import { getAssignedEntries } from "/opt/nodejs/pitAssignmentAccess.js";
 import { requireGeneralRace } from "/opt/nodejs/raceToken.js";
 
@@ -41,15 +40,13 @@ export const handler = async (event) => {
     }
 
     // ── start_driver の登録状況（§3.6。絞り込み済みの carNum だけを対象にする） ──
-    const startDriverResult = await docClient.send(
-      new QueryCommand({
-        TableName: Tables.startDriver,
-        KeyConditionExpression: "race_id = :race_id",
-        ExpressionAttributeValues: { ":race_id": race_id },
-      }),
-    );
+    const startDriverItems = await queryAll({
+      TableName: Tables.startDriver,
+      KeyConditionExpression: "race_id = :race_id",
+      ExpressionAttributeValues: { ":race_id": race_id },
+    });
     const startDriverByCarNum = new Map(
-      (startDriverResult.Items || []).map((sd) => [sd.car_num, sd.driver]),
+      startDriverItems.map((sd) => [sd.car_num, sd.driver]),
     );
     const startDriver = {};
     for (const n of carNum) {

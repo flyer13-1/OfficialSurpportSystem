@@ -1,5 +1,4 @@
-import { QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { docClient, Tables, response } from "/opt/nodejs/dynamodb.js";
+import { Tables, response, queryAll } from "/opt/nodejs/dynamodb.js";
 import { requireGeneralRace } from "/opt/nodejs/raceToken.js";
 
 /**
@@ -21,25 +20,20 @@ export const handler = async (event) => {
     const race_id = access.raceId;
 
     // ── EntryTable から全エントリー取得 ──
-    const entryResult = await docClient.send(
-      new QueryCommand({
-        TableName:                 Tables.entry,
-        KeyConditionExpression:    "race_id = :race_id",
-        ExpressionAttributeValues: { ":race_id": race_id },
-      })
-    );
-    const entries = entryResult.Items || [];
+    const entries = await queryAll({
+      TableName:                 Tables.entry,
+      KeyConditionExpression:    "race_id = :race_id",
+      ExpressionAttributeValues: { ":race_id": race_id },
+    });
 
     // ── RetireTable から全リタイア記録取得 ──
-    const retireResult = await docClient.send(
-      new QueryCommand({
-        TableName:                 Tables.retire,
-        KeyConditionExpression:    "race_id = :race_id",
-        ExpressionAttributeValues: { ":race_id": race_id },
-      })
-    );
+    const retires = await queryAll({
+      TableName:                 Tables.retire,
+      KeyConditionExpression:    "race_id = :race_id",
+      ExpressionAttributeValues: { ":race_id": race_id },
+    });
     const retireMap = {};
-    for (const r of retireResult.Items || []) {
+    for (const r of retires) {
       retireMap[r.car_num] = r;
     }
 

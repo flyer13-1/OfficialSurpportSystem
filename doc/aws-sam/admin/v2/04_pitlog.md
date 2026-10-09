@@ -430,6 +430,26 @@ URL.revokeObjectURL(a.href);
 - [showAll.md](../../../IF/showAll.md): レスポンス例を配列形式に更新し、`managerId` を削除
 - [dynamodb-design.md](../../../database/dynamodb-design.md) / [SQLcode.sql](../../../database/SQLcode.sql): `outpost_log` に `is_leader` を追加（§6）
 
+## 7.5 件数の前提（2026-10-09追加）
+
+**Query は1回で最大1MB分しか返さない。** 一般向け・管理者向けのどちらも、当初は
+「1レース分は1ページに収まる」前提で `LastEvaluatedKey` を見ていなかった。
+`pit_log` 1件が 200〜300バイトなので 1MB は 3000〜5000件に当たり、1レース（数十台 ×
+数回のピット = 数百件）なら収まるが、**その前提はどこにも書かれていなかった。**
+
+超えたときに起きることは、黙って一部だけで処理する形になる。
+
+| 影響 | 内容 |
+| --- | --- |
+| `pit_num` の重複 | `autoCreate` / `handCreate` が「現在の最大 `pit_num`」を数え損ね、回数が巻き戻る |
+| 表・CSVの欠落 | `showAll`（`buildPitLogs`）の一覧から記録が落ちる |
+| 誤った403 | `getAssignedEntries` が担当エリア内の車両を取り逃がし、その車両の操作が「担当エリア外の車両です」で弾かれる |
+
+**対応（2026-10-09）:** 共通レイヤー `dynamodb.js` に `queryAll(params)` を置き、
+最後のページまで辿ってから処理する形に統一した（一般向けの全クエリ11箇所）。
+`Limit` は渡さない（`Limit` は「フィルタ前に評価する件数」の上限で、`FilterExpression`
+と併用すると取りこぼす。03章§2.5・§4.4 で踏んだ問題と同じ）。
+
 ## 8. 決定事項
 
 未決事項なし（下記のとおり全て決定済み）。

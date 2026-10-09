@@ -1,5 +1,5 @@
-import { QueryCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
-import { docClient, Tables, response, generateId } from "/opt/nodejs/dynamodb.js";
+import { PutCommand } from "@aws-sdk/lib-dynamodb";
+import { docClient, Tables, response, generateId, queryAll } from "/opt/nodejs/dynamodb.js";
 import { requireGeneralRace } from "/opt/nodejs/raceToken.js";
 import { findUnassignedCars } from "/opt/nodejs/pitAssignmentAccess.js";
 
@@ -52,16 +52,15 @@ export const handler = async (event) => {
     }
 
     // ── 現在の最大 pit_num を取得 ──
-    const existingResult = await docClient.send(
-      new QueryCommand({
-        TableName:                 Tables.pitLog,
-        KeyConditionExpression:    "race_id = :race_id",
-        FilterExpression:          "car_num = :car_num",
-        ExpressionAttributeValues: { ":race_id": raceId, ":car_num": car_num },
-        ProjectionExpression:      "pit_num",
-      })
-    );
-    const maxPitNum = (existingResult.Items || []).reduce(
+    // 全ページ辿る。1ページで止めると最大値が巻き戻り、pit_num が重複する
+    const existingItems = await queryAll({
+      TableName:                 Tables.pitLog,
+      KeyConditionExpression:    "race_id = :race_id",
+      FilterExpression:          "car_num = :car_num",
+      ExpressionAttributeValues: { ":race_id": raceId, ":car_num": car_num },
+      ProjectionExpression:      "pit_num",
+    });
+    const maxPitNum = existingItems.reduce(
       (max, item) => Math.max(max, item.pit_num || 0),
       0
     );
