@@ -45,52 +45,51 @@
 ### ステータスコード
 
 - `200 OK`: 正常なレスポンス（`msg`: 空文字）
-- `400 Bad Request`: パラメータエラー（`msg`: エラー詳細）
+- `400 Bad Request`: `carNum` が未指定、または正の整数でない（`msg`: エラー詳細）
 - `401 Unauthorized`: 未ログイン（セッション切れ含む）（`msg`: エラー詳細）
+- `403 Forbidden`: 担当エリア外の車両／トークンが不正・終了済みのレース（`reason: "race_finished"`。01章 §5.4）
 - `500 Internal Server Error`: サーバーエラー（`msg`: エラー詳細）
 
 ### レスポンスボディ
 
-変更したいゼッケン番号の全ピット記録を返す。キーはDBの管理ID（一意）。
+対象車両の全ピット記録を **`logs`（配列）** で返す。**2026-10-09変更**（それまでは
+`pitNum` をキーにしたオブジェクトで、`inDriver` が常に `null`、`managerId`(ULID) を
+返していた）。データの組み立ては共通処理 `buildPitLogs()`（[04_pitlog.md](../aws-sam/admin/v2/04_pitlog.md) §2.2）を
+使い、対象車両の行だけを取り出す。項目は `GET /entries/show` と同じもの。
 
 ```json
 {
   "msg": "",
-  "1": {
-    "managerId": 1,
-    "manager": "あそう太郎",
-    "pitNum": 1,
-    "carNum": 4,
-    "className": "st1",      //EntryTable から carNum で結合
-    "teamName": "TeamA",     //EntryTable から carNum で結合
-    "retire": false,         //boolean。RetireTable から carNum で結合
-    "inDriver": "A",
-    "outDriver": "B",
-    "inTime": "2026-05-06T10:00:00+09:00",
-    "outTime": "2026-05-06T11:00:00+09:00",
-    "garageInTime": null,    //ガレージイン時刻。非null の場合は pitGap が null
-    "pitGap": 3600,          //DB保存なし。outTime - inTime（秒）をレスポンス生成時に計算。garageInTime が非null の場合は null
-    "tire": true,            //boolean
-    "oil": false,            //boolean
-    "note": "メモ"
-  },
-  "2": {
-    "managerId": 2,
-    "manager": "あそう太郎",
-    "pitNum": 2,
-    "carNum": 4,
-    "className": "st1",
-    "teamName": "TeamA",
-    "retire": false,         //boolean
-    "inDriver": "B",
-    "outDriver": "A",
-    "inTime": "2026-05-06T15:00:00+09:00",
-    "outTime": "2026-05-06T16:00:00+09:00",
-    "garageInTime": null,
-    "pitGap": 3600,
-    "tire": false,
-    "oil": true,
-    "note": ""
-  }
+  "reason": "エンジンブロー",
+  "logs": [
+    {
+      "pitNum": 1,
+      "carNum": 5,
+      "manager": "あそう太郎",
+      "retire": true,
+      "inDriver": "A",
+      "inDriverName": "あそう太郎",
+      "outDriver": "B",
+      "outDriverName": "きたのせいじ",
+      "inTime": "2026-10-09T13:00:00.000Z",
+      "outTime": "2026-10-09T13:02:00.000Z",
+      "pitGap": 120,
+      "className": "ST-1",
+      "teamName": "チームA",
+      "maintenanceArea": 3,
+      "pitGarage": "5",
+      "tire": true,
+      "oil": false,
+      "note": ""
+    }
+  ]
 }
 ```
+
+- `logs`: 対象車両のピット記録。**1台分なので時刻順＝ピット回数順**になる
+- `reason`: **リタイア理由**（RetireTable）。車両ごとに1つなので `logs` の外に置く。リタイアしていなければ空文字。更新画面の「理由変更」の初期値に使う
+- `inDriver` / `outDriver`: ドライバー枠（`A`〜`F`）。`inDriver` は**前回出ていった人**で、1回目だけ `start_driver` を使う（04章§2.3 のキュー方式）。`inDriverName` / `outDriverName` は entry から引いた氏名
+- `pitGap`: `outTime - inTime`（秒）。**どちらかが欠けていれば `null`**（DB保存なし）
+- `retire`: RetireTable の `is_retired`（boolean）
+- **`garageInTime` は返さない。** 2026-10-04 に全廃した（04章§2.5）
+- **`managerId` は返さない。** ULID で画面が使っておらず、`GET /entries/show` からも削除済み

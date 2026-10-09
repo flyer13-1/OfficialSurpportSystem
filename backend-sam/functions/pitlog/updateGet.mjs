@@ -1,12 +1,21 @@
 import { GetCommand } from "@aws-sdk/lib-dynamodb";
-import { docClient, Tables, response, queryAll } from "/opt/nodejs/dynamodb.js";
+import { docClient, Tables, response } from "/opt/nodejs/dynamodb.js";
 import { requireGeneralRace } from "/opt/nodejs/raceToken.js";
 import { findUnassignedCars } from "/opt/nodejs/pitAssignmentAccess.js";
+import { buildPitLogs } from "/opt/nodejs/pitLogs.js";
 
 /**
  * GET /entries/update — 変更対象ピット記録取得
- * IF設計書: enterUpdate1.md
- * raceId は X-Race-Id（raceId トークン）、クエリは carNum
+ * IF設計書: doc/IF/enterUpdate1.md
+ *
+ * raceId は X-Race-Id ヘッダーのトークンで受け取る（requireGeneralRace。01章 R10）。
+ * 対象車両はクエリの carNum。呼び出し元の担当エリア内に限る。
+ *
+ * データの組み立ては共通処理 buildPitLogs()（04章§2.2）を使い、対象車両の行だけを
+ * 取り出す（2026-10-09変更）。以前はこの中で独自に組み立てていたため、
+ * inDriver（ピットに入った人）が常に null で、画面の「インドライバー」列が
+ * 空のままだった。04章§2.3 のキュー方式は buildPitLogs にしかなく、
+ * 二重に実装する理由が無い。
  */
 export const handler = async (event) => {
   try {
@@ -21,68 +30,28 @@ export const handler = async (event) => {
     if (!carNumStr) return response(400, { msg: "carNum は必須です" });
 
     const car_num = Number(carNumStr);
-    if (isNaN(car_num)) return response(400, { msg: "carNum が不正です" });
+    if (!Number.isInteger(car_num) || car_num <= 0) {
+      return response(400, { msg: "車番は正の整数で指定してください" });
+    }
     if ((await findUnassignedCars(username, raceId, [car_num])).length > 0) {
       return response(403, { msg: "担当エリア外の車両です" });
     }
 
-    // ── PitLogTable から race_id + car_num でフィルタ ──
-    const pitLogs = await queryAll({
-      TableName:                 Tables.pitLog,
-      KeyConditionExpression:    "race_id = :race_id",
-      FilterExpression:          "car_num = :car_num",
-      ExpressionAttributeValues: { ":race_id": raceId, ":car_num": car_num },
-    });
+    // 対象車両の記録だけを取り出す。並びは buildPitLogs が時刻順にしているが、
+    // 1台分では「時刻順＝ピット回数順」になるため、画面側の並べ替えと矛盾しない。
+    const logs = (await buildPitLogs(raceId)).filter((row) => row.carNum === car_num);
 
-    // ── EntryTable から className / teamName を取得 ──
-    const entryResult = await docClient.send(
-      new GetCommand({
-        TableName: Tables.entry,
-        Key:       { race_id: raceId, car_num },
-      })
-    );
-    const entry = entryResult.Item || {};
-
-    // ── RetireTable から retire 状態を取得 ──
+    // リタイア理由は buildPitLogs が持たない（04章§4.3 の列に無いため）。
+    // 更新画面は現在の理由を入力欄に出すので、ここで引いて別項目として返す。
     const retireResult = await docClient.send(
       new GetCommand({
         TableName: Tables.retire,
         Key:       { race_id: raceId, car_num },
       })
     );
-    const isRetired = retireResult.Item?.is_retired ?? false;
+    const reason = retireResult.Item?.reason ?? "";
 
-    // ── pit_num 昇順でソートしてレスポンス構築 ──
-    pitLogs.sort((a, b) => (a.pit_num || 0) - (b.pit_num || 0));
-
-    const result = { msg: "" };
-
-    for (const log of pitLogs) {
-      const pitGap =
-        log.in_time && log.out_time
-          ? Math.round((new Date(log.out_time) - new Date(log.in_time)) / 1000)
-          : null;
-
-      result[String(log.pit_num)] = {
-        managerId:     log.id,
-        manager:       log.username,
-        pitNum:        log.pit_num,
-        carNum:        log.car_num,
-        className:     entry.class_name    || "",
-        teamName:      entry.entrant_name  || "",
-        retire:        isRetired,
-        inDriver:      null,          // showAll でのみ算出（updateGet では省略）
-        outDriver:     log.driver_out || null,
-        inTime:        log.in_time         || null,
-        outTime:       log.out_time        || null,
-        pitGap,
-        tire:          log.tire  ?? false,
-        oil:           log.oil   ?? false,
-        note:          log.note  || "",
-      };
-    }
-
-    return response(200, result);
+    return response(200, { msg: "", reason, logs });
   } catch (err) {
     console.error("updateGet error:", err);
     return response(500, { msg: "サーバーエラーが発生しました" });
