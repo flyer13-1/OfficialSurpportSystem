@@ -119,6 +119,26 @@
   `#logoutBtn` だけだと詳細度が低く（IDセレクタ1つ 対 ID＋要素）、
   絶対配置を打ち消せない。
 
+### 「確認画面に戻る」（`#backToConformBtn`、2026-10-09追加）
+
+ヘッダーの **左端**に置く。押すと `conform.html` へ移動する。
+**大会IDを入れ直したいとき・別のレースに入り直したいとき**に使う。
+
+| | `#backToConformBtn` | `#logoutBtn` |
+| --- | --- | --- |
+| 置く画面 | admin / main（**conform 自身には置かない**） | admin / main / conform |
+| 位置 | ヘッダー左端 | ヘッダー右端 |
+| 色 | 灰（`#6b7280`） | 赤（`#dc2626`） |
+| 認証情報 | **消さない** | `clearAuth()` で消す |
+| 遷移 | `href`（ブラウザの戻るで帰れる） | `replace`（戻れない） |
+
+- 紐付けは `common.js` が自動で行う（`#logoutBtn` と同じ形）。各画面のJSで登録しない。
+  以前は `adminRace.js` が admin 用に独自に登録していたが、main にも置くにあたって
+  共通側へ寄せた。
+- 位置の指定は `header #backToConformBtn` にスコープする。理由は `#logoutBtn` と同じ。
+- **ログアウトと左右に分ける。** 押し間違えると認証ごと消えてしまうため、
+  色も変えて並べない。
+
 ### bfcache ガード（`pageshow`）
 
 戻る／進むでブラウザキャッシュ（bfcache）から復元されたとき、`token` が無ければログイン画面へ
