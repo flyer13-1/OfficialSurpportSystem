@@ -47,14 +47,16 @@ export const handler = async (event) => {
 
     // ── 担当者を別の人に変える場合、その人が既に担当を持っていないか確認する ──
     // 1つのレースで1人が持てる担当エリアは1つ（§4.1）。
+    // SK が `username#maintenance_area` なので、キー条件の begins_with で引く。
+    // FilterExpression + Limit:1 は使えない（Limit はフィルタ前に評価する件数の上限で、
+    // パーティションの先頭1件が別人だと「担当なし」に見えてしまう）。
     if (username !== oldUsername) {
       const existing = await docClient.send(
         new QueryCommand({
           TableName:                 Tables.pitAssignment,
-          KeyConditionExpression:    "race_id = :raceId",
-          FilterExpression:          "username = :username",
-          ExpressionAttributeValues: { ":raceId": raceId, ":username": username },
-          ProjectionExpression:      "username",
+          KeyConditionExpression:    "race_id = :raceId AND begins_with(#sk, :prefix)",
+          ExpressionAttributeNames:  { "#sk": "username#maintenance_area" },
+          ExpressionAttributeValues: { ":raceId": raceId, ":prefix": `${username}#` },
           Limit:                     1,
         })
       );

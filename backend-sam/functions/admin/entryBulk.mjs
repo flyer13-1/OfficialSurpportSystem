@@ -1,5 +1,11 @@
 import { TransactWriteCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { docClient, Tables, response, getRaceIdHeader } from "/opt/nodejs/dynamodb.js";
+import {
+  docClient,
+  Tables,
+  response,
+  getRaceIdHeader,
+  MAX_TRANSACT_ITEMS,
+} from "/opt/nodejs/dynamodb.js";
 import { requireAdmin } from "/opt/nodejs/admin.js";
 import { requireRace } from "/opt/nodejs/raceAccess.js";
 import { isPositiveInt } from "/opt/nodejs/entryAccess.js";
@@ -44,6 +50,14 @@ export const handler = async (event) => {
       return response(400, { msg: "未入力の項目があります" });
     }
 
+    // 件数の上限は DB を引く前に見る（§1.1・§2.2）。これが無いと、101件以上が
+    // TransactWriteItems の ValidationException になって 400 のはずが 500 で返る。
+    if (entries.length > MAX_TRANSACT_ITEMS) {
+      return response(400, {
+        msg: `一度に登録できるのは${MAX_TRANSACT_ITEMS}件までです`,
+      });
+    }
+
     if (entries.some((e) => !isPositiveInt(e.carNum))) {
       return response(400, { msg: "車番は正の整数で指定してください" });
     }
@@ -71,7 +85,7 @@ export const handler = async (event) => {
       return response(409, { msg: "既に登録済みの車番が含まれています" });
     }
 
-    // ── TransactWriteItems で登録（1トランザクション最大100件。1レース分は収まる） ──
+    // ── TransactWriteItems で登録（上限は MAX_TRANSACT_ITEMS。上で弾いている） ──
     await docClient.send(
       new TransactWriteCommand({
         TransactItems: entries.map((e) => ({

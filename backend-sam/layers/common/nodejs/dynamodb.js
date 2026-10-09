@@ -35,6 +35,14 @@ export const Tables = {
 };
 
 /**
+ * TransactWriteItems の1トランザクションあたりの上限（DynamoDBの制限）。
+ * 一括登録（entry / start_driver / pit_assignment）と race 削除で共有する
+ * （doc/aws-sam/admin/v2/03_race_data.md §1.1・§5.4）。超える場合は各ハンドラが
+ * 400（race削除は409）で弾く。これが無いと、件数超過が読みにくい例外になって500で返る。
+ */
+export const MAX_TRANSACT_ITEMS = 100;
+
+/**
  * Lambda レスポンス生成ヘルパー
  * @param {number} statusCode
  * @param {object} body

@@ -11,6 +11,37 @@ import { requireRace } from "/opt/nodejs/raceAccess.js";
  * pit_log が1件でも紐付く場合は削除不可（409）。削除に伴い、当該車両の
  * start_driver も同時に削除する（§5.3。pit_assignment は人単位のため残置する）。
  */
+
+/**
+ * 当該車両の pit_log が1件でもあるか（§2.5）。
+ *
+ * PitLogTable は PK race_id / SK id(ULID) で car_num の索引が無いため、
+ * race_id で Query して car_num を FilterExpression で絞り込む。
+ * **Limit は使えない。** Limit は「フィルタ前に評価する件数」の上限なので、
+ * Limit:1 だとパーティションの先頭1件しか見ず、その1件が別の車両なら
+ * 記録があっても0件に見えてしまう（記録付きの車両が消せてしまう）。
+ * 1ページに収まらない場合に取りこぼさないよう、見つかるまでページを辿る。
+ * Select: COUNT なので項目本体は運ばない。
+ */
+async function hasPitLog(raceId, carNum) {
+  let lastKey;
+  do {
+    const page = await docClient.send(
+      new QueryCommand({
+        TableName:                 Tables.pitLog,
+        KeyConditionExpression:    "race_id = :raceId",
+        FilterExpression:          "car_num = :carNum",
+        ExpressionAttributeValues: { ":raceId": raceId, ":carNum": carNum },
+        Select:                    "COUNT",
+        ExclusiveStartKey:         lastKey,
+      })
+    );
+    if (page.Count > 0) return true;
+    lastKey = page.LastEvaluatedKey;
+  } while (lastKey);
+  return false;
+}
+
 export const handler = async (event) => {
   try {
     const auth = await requireAdmin(event);
@@ -26,17 +57,7 @@ export const handler = async (event) => {
     }
 
     // ── pit_log 紐付き確認（1件でもあれば削除不可） ──
-    const pitLogs = await docClient.send(
-      new QueryCommand({
-        TableName:                 Tables.pitLog,
-        KeyConditionExpression:    "race_id = :raceId",
-        FilterExpression:          "car_num = :carNum",
-        ExpressionAttributeValues: { ":raceId": raceId, ":carNum": carNum },
-        ProjectionExpression:      "id",
-        Limit:                     1,
-      })
-    );
-    if ((pitLogs.Items || []).length > 0) {
+    if (await hasPitLog(raceId, carNum)) {
       return response(409, { msg: "ピット記録が存在するため削除できません" });
     }
 

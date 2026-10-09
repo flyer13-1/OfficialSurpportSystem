@@ -1,5 +1,11 @@
 import { QueryCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
-import { docClient, Tables, response, getRaceIdHeader } from "/opt/nodejs/dynamodb.js";
+import {
+  docClient,
+  Tables,
+  response,
+  getRaceIdHeader,
+  MAX_TRANSACT_ITEMS,
+} from "/opt/nodejs/dynamodb.js";
 import { requireAdmin } from "/opt/nodejs/admin.js";
 import { requireRace } from "/opt/nodejs/raceAccess.js";
 
@@ -13,8 +19,8 @@ import { requireRace } from "/opt/nodejs/raceAccess.js";
  * pit_assignment と race は1つの TransactWriteItems で消す（2026-10-08変更）。
  */
 
-// TransactWriteItems は1トランザクション100件まで（race 本体の1件を含む）。
-const MAX_TRANSACT_ITEMS = 100;
+// 上限（MAX_TRANSACT_ITEMS）は共通レイヤーの dynamodb.js に置いている。
+// race 削除では race 本体の1件もこの上限に含めて数える。
 export const handler = async (event) => {
   try {
     const auth = await requireAdmin(event);

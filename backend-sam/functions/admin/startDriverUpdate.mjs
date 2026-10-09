@@ -2,7 +2,11 @@ import { GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient, Tables, response, getRaceIdHeader } from "/opt/nodejs/dynamodb.js";
 import { requireAdmin } from "/opt/nodejs/admin.js";
 import { requireRace } from "/opt/nodejs/raceAccess.js";
-import { isValidDriverLetter, hasDriverSlot } from "/opt/nodejs/entryAccess.js";
+import {
+  isValidDriverLetter,
+  hasDriverSlot,
+  isPositiveInt,
+} from "/opt/nodejs/entryAccess.js";
 
 /**
  * PUT /admin/start-driver — スタートドライバー変更
@@ -21,8 +25,14 @@ export const handler = async (event) => {
     if (error) return error;
 
     const body   = JSON.parse(event.body || "{}");
-    const carNum = Number(body.carNum);
     const driver = body.driver;
+
+    // 検証せずに Number() した値をキーに使うと、"abc" が NaN になって
+    // GetItem で例外になり、400 のはずが 500 で返る（一括登録と同じ扱いに揃える）。
+    if (!isPositiveInt(body.carNum)) {
+      return response(400, { msg: "車番は正の整数で指定してください" });
+    }
+    const carNum = Number(body.carNum);
 
     const target = await docClient.send(
       new GetCommand({ TableName: Tables.startDriver, Key: { race_id: raceId, car_num: carNum } })

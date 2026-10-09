@@ -1,5 +1,11 @@
 import { QueryCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
-import { docClient, Tables, response, getRaceIdHeader } from "/opt/nodejs/dynamodb.js";
+import {
+  docClient,
+  Tables,
+  response,
+  getRaceIdHeader,
+  MAX_TRANSACT_ITEMS,
+} from "/opt/nodejs/dynamodb.js";
 import { requireAdmin } from "/opt/nodejs/admin.js";
 import { requireRace } from "/opt/nodejs/raceAccess.js";
 import { isValidDriverLetter, hasDriverSlot } from "/opt/nodejs/entryAccess.js";
@@ -17,8 +23,7 @@ import { isValidDriverLetter, hasDriverSlot } from "/opt/nodejs/entryAccess.js";
  * 形式の違反（A〜F以外・entryに無い車両／枠）は従来どおりリクエスト全体を400で拒否する。
  */
 
-// TransactWriteItems は1トランザクション100件まで。
-const MAX_TRANSACT_ITEMS = 100;
+// 上限（MAX_TRANSACT_ITEMS）は共通レイヤーの dynamodb.js に置いている。
 
 export const handler = async (event) => {
   try {
