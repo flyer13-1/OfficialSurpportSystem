@@ -69,8 +69,10 @@ export const handler = async (event) => {
         },
       });
 
+      // 「対象が無い」は 404（2026-10-09変更。400 だと入力の形が悪いのか
+      // 対象が存在しないのか区別できない。startDriverUpdate の 404 と揃えた）
       if (pitItems.length === 0) {
-        return response(400, { msg: "対象のピット記録が見つかりません" });
+        return response(404, { msg: "対象のピット記録が見つかりません" });
       }
 
       const targetLog = pitItems[0];
@@ -188,7 +190,7 @@ export const handler = async (event) => {
         })
       );
       if (!retireResult.Item) {
-        return response(400, { msg: "対象のリタイア記録が存在しません" });
+        return response(404, { msg: "対象のリタイア記録が存在しません" });
       }
 
       await docClient.send(
