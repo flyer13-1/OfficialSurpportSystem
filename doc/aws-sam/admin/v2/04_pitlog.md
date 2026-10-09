@@ -245,9 +245,11 @@ startDriver → pit_log 1回目の driver_out → pit_log 2回目の driver_out 
 
 ## 4. フロントでの表示方法
 
-### 4.1 現状の問題（`showAllGimic.js` をそのまま流用できない理由）
+### 4.1 かつての問題（`showAllGimic.js` をそのまま流用できない理由）
 
-描画処理は `showAllGimic.js` にあるが、今の作りのままでは管理者ポップアップで使えない。
+**6つすべて解消済み（#4〜#6 は 2026-10-04、#1〜#3 は 2026-10-09）。**
+以下は、何が問題で何を直したかの記録として残す。描画処理は `showAllGimic.js` にあるが、
+当初の作りのままでは管理者ポップアップで使えなかった。
 
 | #   | 現状                                                                      | 起きること                                                                                                                   |
 | --- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
@@ -258,19 +260,28 @@ startDriver → pit_log 1回目の driver_out → pit_log 2回目の driver_out 
 | 5   | 並べ替えが `pitNum` 優先（`if (a.pitNum !== b.pitNum) return a.pitNum - b.pitNum;`） | 「ピットイン順」ボタンの名前に反して、**1回目どうし・2回目どうしがまとまって並ぶ**。§2.4 のとおり `inTime` → `carNum` に直す |
 | 6   | 同時刻の比較に `a.managerId - b.managerId` を使っている                   | ULID は文字列のため `NaN` になり、**並べ替えが効いていない**。`managerId` は返さなくなるため削除する                         |
 
-### 4.2 共通化の方針
+**#1 は実害が出ていた。** `outPosts.html` には `#all` / `#search` / `#filter` が無いため、
+出力画面を開くたびに末尾の `allButton.addEventListener(...)` が `TypeError` を投げていた
+（表の描画自体は、例外がファイル末尾で起きるため動いていた）。2026-10-09に解消。
 
-`showAllGimic.js` から **DOM の決め打ちとグローバル変数を取り除き、引数で受け取る純粋な関数にする。**
+### 4.2 共通化の方針（2026-10-09実装済み）
 
-| 関数                                                | 役割                                       |
-| --------------------------------------------------- | ------------------------------------------ |
-| `filterAndSortPitLogs(logs, { className, search })` | 絞り込みと並べ替えをして、新しい配列を返す |
-| `renderPitLogTable(tbody, logs)`                    | 渡された `tbody` に行を描く                |
-| `formatDatetime` / `formatGap` / `formatBoolean`    | 表示用の整形（現行のまま）                 |
+`showAllGimic.js` から **DOM の決め打ちとグローバル変数を取り除き、引数で受け取る純粋な関数にした。**
 
-- **イベントの紐付け（検索欄・クラスボタン・全表示ボタン）は、各画面の側に移す。** `showAll.js` / `outPosts.js` / `admin.js` が、自分の画面にある要素を自分で拾って、上の関数を呼ぶ。
-- これにより、`showAllGimic.js` は「どの画面から呼ばれても同じように動く部品」になる。
+| 関数                                                             | 役割                                       |
+| ---------------------------------------------------------------- | ------------------------------------------ |
+| `filterAndSortPitLogs(logs, { className, search })`              | 絞り込みと並べ替えをして、新しい配列を返す |
+| `renderPitLogHead(thead)`                                        | 列定義から見出し行を作る（§4.3）           |
+| `renderPitLogTable(tbody, logs)`                                 | 渡された `tbody` に行を描く                |
+| `renderClassButtons(filterList, classNames, selected, onSelect)` | クラス絞り込みのボタンを作る（状態は持たない） |
+| `formatDriver` / `formatDatetime` / `formatGap` / `formatBoolean` | 表示用の整形（従来のまま）                 |
+
+- **イベントの紐付け（検索欄・クラスボタン・全表示ボタン）は、各画面の側に移した。** `showAll.js` / `outPosts.js` / 管理者画面が、自分の画面にある要素を自分で拾って、上の関数を呼ぶ。絞り込みの状態（`{ className, search }`）も各画面が持つ。
+- **クラスボタンの生成だけは共通部品に残した。** 生成そのものは3画面で同じで、重複させる意味が無いため。ただし**状態は持たせず**、置き場所の要素・候補・選択中の値・押されたときに呼ぶ関数を引数で受け取る形にしてある（DOM の決め打ちもグローバル変数も無いため、§4.2 の目的は満たす）。
+- `showAllGimic.js` の中に `document.getElementById` / `document.querySelector` は無く、`document.createElement` だけが残っている。
+- これにより、`showAllGimic.js` は「どの画面から呼ばれても同じように動く部品」になった。
 - 管理者ポップアップでも、一般画面と同じ絞り込み・並べ替えがそのまま使える。
+- **読み込み順**: 部品を先に読むため、各HTMLの `<script>` は `common.js` → `showAllGimic.js` → 画面のJS の順にし、画面側の入口は `DOMContentLoaded` に揃えた（admin 系と同じ形）。
 
 ### 4.3 列の定義（表示とダウンロードの共通の正）
 
@@ -296,7 +307,7 @@ const PIT_LOG_COLUMNS = [
 ```
 
 - 各列は、単純に1項目を出すなら `key`、複数の項目を組み合わせるなら `value(row)` を持つ。
-- `renderPitLogTable` は、この配列を回して**見出し行とデータ行を作る**（現行のようにHTMLを直書きしない）。列数も `PIT_LOG_COLUMNS.length` から取るため、`colSpan = 12` の決め打ちが消える。
+- **見出し行は `renderPitLogHead(thead)`、データ行は `renderPitLogTable(tbody, logs)`** が、この配列を回して作る（HTMLに直書きしない）。列数も `PIT_LOG_COLUMNS.length` から取るため、`colSpan = 12` の決め打ちが消える。`showAll.html` / `outPosts.html` の `<thead>` は空にしてあり（`id="thead"`）、列を足しても見出しと本文がずれない。
 - **CSV のダウンロードも、同じ配列を回して作る**（§5）。
 - この結果、**画面に出ている列とダウンロードされる列が、常に一致する。** 列を足したいときは、この配列に1行足すだけで両方に反映される。
 
@@ -408,9 +419,9 @@ URL.revokeObjectURL(a.href);
 - ~~**`garageInTime` の全廃（§2.5）**~~ 実装済み（既存データに値が入った記録は無いことを確認済み）
 - ~~`showAllGimic.js`: **並べ替えを `inTime` → `carNum` に修正**、列定義（§4.3）を回して描く形に変更~~ 実装済み（`sortTimeOf` と `PIT_LOG_COLUMNS`。§4.1の問題#4〜#6が解消）
 
-**管理者向け（未実装。着手順は下記のとおり）**
+**管理者向け（着手順は下記のとおり。1 は完了）**
 
-1. `showAllGimic.js`: DOM決め打ち（トップレベルの `getElementById` / `querySelector("tbody")`）とグローバル変数（`entries`）を排除し、引数で受け取る形に変更。トップレベルの `addEventListener` を各画面に移す（§4.2。§4.1の問題#1〜#3）
+1. ~~`showAllGimic.js`: DOM決め打ち（トップレベルの `getElementById` / `querySelector("tbody")`）とグローバル変数（`entries`）を排除し、引数で受け取る形に変更。トップレベルの `addEventListener` を各画面に移す（§4.2。§4.1の問題#1〜#3）~~ **実装済み（2026-10-09）。** `filterAndSortPitLogs` / `renderPitLogHead` / `renderPitLogTable` / `renderClassButtons` に分け、絞り込みの状態とイベントの紐付けは `showAll.js` / `outPosts.js` に移した。`showAll.html` / `outPosts.html` の見出し直書きも廃止（§4.3）。**これで 2・3 の前提は満たした**
 2. [showAll.mjs](../../../../backend-sam/functions/pitlog/showAll.mjs): 認可の leader 分岐を追加（§3.3）。leader は平文 raceId を `X-Race-Id` で送るため、`requireGeneralRace` の前に分岐が必要
 3. `admin.html` / `admin.js` / `admin.css`: ポップアップ、表、ダウンロードボタン。PDF は `window.print()` のため、ダイアログ以外を隠す印刷用CSSも必要
 

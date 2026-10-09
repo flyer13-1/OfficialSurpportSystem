@@ -41,10 +41,10 @@ nextJob.md の最後の節「結果を見るページ」に当たる部分。**�
 
 | # | 残件 | 内容 | 状況 |
 |---|---|---|---|
-| 1 | `showAllGimic.js` の共通部品化 | トップレベルの `getElementById` / `querySelector("tbody")`、グローバル `entries` の直読み、トップレベルの `addEventListener` を取り除き、`filterAndSortPitLogs(logs, {className, search})` と `renderPitLogTable(tbody, logs)` に引数で渡す形にする。イベントの紐付けは各画面（`showAll.js` / `outPosts.js` / 管理者ポップアップ）に移す（04章§4.1・§4.2） | 保留中（時間をかけて行う） |
-| 2 | 管理者ポップアップ | `showAll.mjs` に leader 分岐（平文 raceId の受付・サーキット照合・終了済みでも許可）を追加し、admin.html にモーダル・表・CSV/PDFボタンを作る（04章§3.3・§4.2・§6） | 保留中（1の完了が前提） |
+| 1 | `showAllGimic.js` の共通部品化 | トップレベルの `getElementById` / `querySelector("tbody")`、グローバル `entries` の直読み、トップレベルの `addEventListener` を取り除き、`filterAndSortPitLogs(logs, {className, search})` と `renderPitLogTable(tbody, logs)` に引数で渡す形にする。イベントの紐付けは各画面（`showAll.js` / `outPosts.js` / 管理者ポップアップ）に移す（04章§4.1・§4.2） | **完了（2026-10-09）** |
+| 2 | 管理者ポップアップ | `showAll.mjs` に leader 分岐（平文 raceId の受付・サーキット照合・終了済みでも許可）を追加し、admin.html にモーダル・表・CSV/PDFボタンを作る（04章§3.3・§4.2・§6） | 未着手（1 が終わったため着手可能） |
 
-**04章§4.1 の6つの問題のうち、#4〜#6（`colSpan=12` の固定、`pitNum` 優先のソート、`managerId` の `NaN` 比較）は 2026-10-04 に解消済み。** 残りは #1〜#3（DOM決め打ちとグローバル変数）。
+**04章§4.1 の6つの問題は全て解消済み**（#4〜#6 は 2026-10-04、#1〜#3 は 2026-10-09）。
 
 **別件で残っているもの**
 
@@ -55,6 +55,7 @@ nextJob.md の最後の節「結果を見るページ」に当たる部分。**�
 
 | 日付 | 決定 | 内容 |
 |---|---|---|
+| 2026-10-09 | `showAllGimic.js` の共通部品化 | DOM決め打ち（トップレベルの `getElementById` / `querySelector("tbody")`）とグローバル `entries` の直読みを排除し、`filterAndSortPitLogs` / `renderPitLogHead` / `renderPitLogTable` / `renderClassButtons` に分けた。絞り込みの状態とイベントの紐付けは `showAll.js` / `outPosts.js` が持つ。見出しの直書き（14列×2ファイル）も廃止し、列定義から作る。**`outPosts.html` には `#all`/`#search`/`#filter` が無く、出力画面では毎回 `TypeError` が出ていた**（04章§4.1 #1 の実害）。これで管理者ポップアップ（残件2）の前提が揃った（04章§4.1・§4.2・§4.3） |
 | 2026-10-08 | 一括登録を TransactWriteItems に統一 | `startDriverBulk`/`pitAssignmentBulk` が `BatchWriteItem` を使い、**`UnprocessedItems` を確認していなかった**（容量不足・スロットリング時に「成功と返したのに一部入っていない」状態が起き得た。例外ではないので try/catch では捕まらない）。`entryBulk` と同じ `TransactWriteItems` に揃え、100件超は400で弾く。3テーブルをまたぐ原子性は無い点を03章§1.1に明記 |
 | 2026-10-08 | 重複行は弾いて残りを登録 | `start_driver`（車番）・`pit_assignment`（担当者名）の重複は、リクエスト全体を拒否せず**その行だけ除外して残りを登録**し、除外した行を `skipped` で返して画面に出す。`entry` の車番重複は入力ミスそのもののため従来どおり400/409で拒否する。形式の違反（A〜F以外・未登録の担当者など）も従来どおり全体を拒否。これで §3.2 の「同一車番は上書きとして許容」は撤回（03章§1.1） |
 | 2026-10-08 | pit_assignment は1レース1人1エリア | 1つのレースで1人が持てる担当エリアは**1つだけ**に確定。担当範囲が離れている場合も1つの範囲（`"5-10"`）で指定する。重複判定は**担当者名だけ**で行い、変更で担当者を別の人に変える場合もその人が既に担当を持っていれば409で弾く。**SKは `username#maintenance_area` のまま維持**（担当者名だけに変えると既存データの移行が必要で、エリア変更が「削除＋作成」である今の作りは成立しているため実利が無い）（03章§4.1・§4.3・§4.4） |
