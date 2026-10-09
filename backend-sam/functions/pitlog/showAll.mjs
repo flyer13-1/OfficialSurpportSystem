@@ -6,7 +6,7 @@ import {
   generateId,
   getRaceIdHeader,
 } from "/opt/nodejs/dynamodb.js";
-import { requireGeneralRace } from "/opt/nodejs/raceToken.js";
+import { verifyRaceToken } from "/opt/nodejs/raceToken.js";
 import { requireGeneralUser } from "/opt/nodejs/usersAccess.js";
 import { requireAdmin } from "/opt/nodejs/admin.js";
 import { requireRace } from "/opt/nodejs/raceAccess.js";
@@ -22,11 +22,16 @@ import { buildPitLogs } from "/opt/nodejs/pitLogs.js";
  *
  * | 呼び出し元 | X-Race-Id | 照合 | 終了済み |
  * | --- | --- | --- | --- |
- * | leader（管理者画面のポップアップ） | **平文の raceId** | requireAdmin ＋ requireRace（サーキット照合。他サーキットは404） | **参照できる** |
- * | 一般利用者（確認・出力画面） | 署名付きトークン | requireGeneralRace | 403 race_finished |
+ * | 管理者画面のポップアップ | **平文の raceId** | requireAdmin ＋ requireRace（サーキット照合。他サーキットは404） | **参照できる** |
+ * | 確認・出力画面（一般） | 署名付きトークン | トークン検証 | 403 race_finished |
  *
- * 管理者APIは raceId トークンの対象外のため、leader は平文の raceId を送る
- * （raceToken.js の冒頭コメント、01章 R10）。分岐はトークン検証より前に行う。
+ * 管理者APIは raceId トークンの対象外のため、ポップアップは平文の raceId を送る
+ * （raceToken.js の冒頭コメント、01章 R10）。
+ *
+ * **分岐は「呼び出し元が leader か」ではなく「ヘッダーに何が入っているか」で行う**
+ * （2026-10-09修正）。leader であっても一般の確認画面から開けばトークンが送られて
+ * くるため、leader かどうかで分けると、そのトークンを平文の raceId として探しに行き
+ * 404「対象のレースが存在しません」になっていた。
  *
  * act=1 のとき OutpostLog に記録する（§6。leader かどうかも残す）。
  */
@@ -37,13 +42,33 @@ export const handler = async (event) => {
 
     const isLeader = auth.isAdmin === "true";
 
-    // ── 認可（§3.3 の手順3） ──
+    // ── 認可（§3.3） ──
     // username は OutpostLog に残す担当者名（§6）。authorizer.username は
     // メールアドレスなので使わず、どちらの経路でも UsersTable から引いた値にする。
     let username;
     let raceId;
     let raceTitle;
-    if (isLeader) {
+
+    const verified = await verifyRaceToken(getRaceIdHeader(event), auth.sub);
+
+    if (verified.raceId) {
+      // ── 一般の確認・出力画面（署名付きトークン） ──
+      // leader がこの画面を使った場合もここに入る。トークンが有効な間だけ見られる。
+      const user = await requireGeneralUser(event);
+      if (user.error) return user.error;
+      username = user.username;
+      raceId = verified.raceId;
+
+      const race = await docClient.send(
+        new GetCommand({ TableName: Tables.race, Key: { id: raceId } })
+      );
+      raceTitle = race.Item?.title ?? "";
+    } else if (verified.error === "expired") {
+      // トークンの期限切れ＝終了済み（01章§5.4）。管理者が終了済みを見たい場合は
+      // 管理者画面のポップアップ（平文の raceId）から開く。
+      return response(403, { msg: "終了したレースです", reason: "race_finished" });
+    } else if (isLeader) {
+      // ── 管理者画面のポップアップ（平文の raceId） ──
       const admin = await requireAdmin(event);
       if (admin.error) return admin.error;
       username = admin.username;
@@ -58,18 +83,10 @@ export const handler = async (event) => {
       raceId = race.id;
       raceTitle = race.title ?? "";
     } else {
-      const user = await requireGeneralUser(event);
-      if (user.error) return user.error;
-      username = user.username;
-
-      const access = await requireGeneralRace(event);
-      if (access.error) return access.error;
-      raceId = access.raceId;
-
-      const race = await docClient.send(
-        new GetCommand({ TableName: Tables.race, Key: { id: raceId } })
-      );
-      raceTitle = race.Item?.title ?? "";
+      // トークンが不正で、leader でもない（理由は返さない。raceIdToken.md §5）
+      return response(403, {
+        msg: "大会IDを確認できません。入室し直してください",
+      });
     }
 
     const logs = await buildPitLogs(raceId);
