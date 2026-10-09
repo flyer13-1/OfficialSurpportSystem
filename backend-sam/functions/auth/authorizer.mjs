@@ -45,7 +45,8 @@ export const handler = async (event) => {
     // 所属サーキットは UsersTable を参照する側で取得する（profile.mjs / admin.js 参照）。
     // sub は UsersTable の PK（cognito_sub）検索用。username（cognito:username）は
     // Cognitoのサインイン設定変更によりメールアドレスになっているため、担当者名としては
-    // 使えない点に注意（profile.mjs は sub で引く。他Functionでの扱いは別issue）。
+    // 使えない。担当者名が要る側は sub から UsersTable を引くこと
+    // （profile.mjs / requireAdmin / requireGeneralUser。2026-10-09に全Function対応済み）。
     policy.context = { username, sub: payload.sub, isAdmin };
     return policy;
   } catch (err) {

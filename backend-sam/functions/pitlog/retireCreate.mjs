@@ -12,8 +12,11 @@ import { requireGeneralRace } from "/opt/nodejs/raceToken.js";
  */
 export const handler = async (event) => {
   try {
-    const username = event.requestContext?.authorizer?.username;
-    if (!username) return response(401, { msg: "認証が必要です" });
+    // ログイン確認だけ。担当者名は使わない（この操作は記録に名前を残さない）。
+    // authorizer.username はメールアドレスなので、存在確認にも sub を使う。
+    if (!event.requestContext?.authorizer?.sub) {
+      return response(401, { msg: "認証が必要です" });
+    }
 
     const access = await requireGeneralRace(event);
     if (access.error) return access.error;

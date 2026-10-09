@@ -7,6 +7,7 @@ import {
   getRaceIdHeader,
 } from "/opt/nodejs/dynamodb.js";
 import { requireGeneralRace } from "/opt/nodejs/raceToken.js";
+import { requireGeneralUser } from "/opt/nodejs/usersAccess.js";
 import { requireAdmin } from "/opt/nodejs/admin.js";
 import { requireRace } from "/opt/nodejs/raceAccess.js";
 import { buildPitLogs } from "/opt/nodejs/pitLogs.js";
@@ -32,17 +33,20 @@ import { buildPitLogs } from "/opt/nodejs/pitLogs.js";
 export const handler = async (event) => {
   try {
     const auth = event.requestContext?.authorizer;
-    const username = auth?.username;
-    if (!username) return response(401, { msg: "認証が必要です" });
+    if (!auth?.sub) return response(401, { msg: "認証が必要です" });
 
-    const isLeader = auth?.isAdmin === "true";
+    const isLeader = auth.isAdmin === "true";
 
     // ── 認可（§3.3 の手順3） ──
+    // username は OutpostLog に残す担当者名（§6）。authorizer.username は
+    // メールアドレスなので使わず、どちらの経路でも UsersTable から引いた値にする。
+    let username;
     let raceId;
     let raceTitle;
     if (isLeader) {
       const admin = await requireAdmin(event);
       if (admin.error) return admin.error;
+      username = admin.username;
 
       // write を指定しない＝参照系。終了済みでも許可する（01章 R7・§5.1）
       const { race, error } = await requireRace(
@@ -54,6 +58,10 @@ export const handler = async (event) => {
       raceId = race.id;
       raceTitle = race.title ?? "";
     } else {
+      const user = await requireGeneralUser(event);
+      if (user.error) return user.error;
+      username = user.username;
+
       const access = await requireGeneralRace(event);
       if (access.error) return access.error;
       raceId = access.raceId;

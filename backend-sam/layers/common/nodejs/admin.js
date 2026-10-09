@@ -6,7 +6,11 @@ import { docClient, Tables, response } from "/opt/nodejs/dynamodb.js";
  * ログイン認証（Cognito）を通過した上で leader グループ所属を確認し、
  * UsersTable を cognito_sub で引いて実在確認と所属サーキットの取得を行う。
  *
- * 成功時: { username, sub, circuit }（circuit は users.organization_id、数値）
+ * 成功時: { username, sub, circuit }
+ *   username: **UsersTable の担当者名**（2026-10-09変更。以前は authorizer.username を
+ *             そのまま返していたが、あれは cognito:username ＝ メールアドレスで、
+ *             担当者名ではない。記録に残すと担当者列にメールが並ぶ）
+ *   circuit : users.organization_id（数値）
  * 失敗時: { error: <response object> }（401 未認証 / 403 admin でない・未登録。
  *          msg に加えて reason も返す。01章§6）
  *
@@ -50,5 +54,9 @@ export async function requireAdmin(event) {
     };
   }
 
-  return { username, sub, circuit: userResult.Item.organization_id };
+  return {
+    username: userResult.Item.username, // 担当者名（authorizer の username ではない）
+    sub,
+    circuit:  userResult.Item.organization_id,
+  };
 }

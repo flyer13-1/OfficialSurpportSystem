@@ -1,6 +1,7 @@
 import { GetCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient, Tables, response } from "/opt/nodejs/dynamodb.js";
 import { requireGeneralRace } from "/opt/nodejs/raceToken.js";
+import { requireGeneralUser } from "/opt/nodejs/usersAccess.js";
 import { findUnassignedCars } from "/opt/nodejs/pitAssignmentAccess.js";
 import { buildPitLogs } from "/opt/nodejs/pitLogs.js";
 
@@ -19,8 +20,11 @@ import { buildPitLogs } from "/opt/nodejs/pitLogs.js";
  */
 export const handler = async (event) => {
   try {
-    const username = event.requestContext?.authorizer?.username;
-    if (!username) return response(401, { msg: "認証が必要です" });
+    // 担当者名は UsersTable から引く（authorizer.username はメールアドレス）。
+    // 担当エリアの判定も、記録に残す担当者も、使うのは担当者名（usersAccess.js）。
+    const user = await requireGeneralUser(event);
+    if (user.error) return user.error;
+    const username = user.username;
 
     const access = await requireGeneralRace(event);
     if (access.error) return access.error;

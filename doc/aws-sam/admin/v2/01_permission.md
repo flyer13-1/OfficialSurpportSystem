@@ -68,6 +68,28 @@ sessionStorage は利用者が書き換えられるため、フロントの検�
 3. `users` テーブルを `Key: { cognito_sub: sub }` で取得する。無ければ → **403**「ユーザーが見つかりません」
 4. 成功時は `{ username, sub, circuit }` を返す。`circuit` は `users.organization_id`（数値）
 
+## 4.5 `requireGeneralUser`（一般向けAPIの担当者名、2026-10-09追加）
+
+一般向けAPIが最初に呼ぶ。**`username` という名前の値が3種類ある**ため、取り違えないようにここで一本化する。
+
+| どこの `username` | 中身 | 入れた人 |
+| --- | --- | --- |
+| `authorizer.username`（`cognito:username`） | **メールアドレス** | サインアップでメールをCognitoのユーザー名にしているため（`regist.js`） |
+| `users.username` | **担当者名**（ひらがな・カタカナ・漢字 3〜20文字） | `register.mjs`。PK は `cognito_sub` |
+| `pit_assignment.username` | **担当者名**（`users.username` と同じ値） | 管理者の担当ピット登録（03章§4.1） |
+
+**担当エリアの判定も、記録に残す「担当者」も、使うのは担当者名。** `authorizer.username` をそのまま渡すと、メールアドレスで担当者名を検索することになり1件も一致しない。
+
+1. `authorizer.sub` が無い → **401**
+2. `users` を `Key: { cognito_sub: sub }` で取得する。無ければ → **403**「ユーザーが見つかりません」（`reason: "user_not_found"`）
+3. 成功時は `{ username, sub }` を返す。`username` は `users.username`（担当者名）
+
+- 実装は `layers/common/nodejs/usersAccess.js`。`requireAdmin`（§4）と同じ形にしてある。
+- **`requireAdmin` が返す `username` も `users.username` に変更した**（2026-10-09）。以前は `authorizer.username` をそのまま返しており、記録に残すとメールアドレスが入っていた。
+- 名前を記録に残さないAPI（`GET`/`POST /entries/retire`）は、担当者名を引かず `authorizer.sub` の有無だけを見る。
+
+> **この不具合が起きていた範囲（2026-10-09まで）:** 一般向けの9箇所が `authorizer.username` を担当者名として使っていた。症状は「入力画面に車両が1台も出ない」「送信が全て403『担当エリア外の車両です』」「`pit_log.username`・`pit_log_history.modified_by`・`outpost_log.username` にメールアドレスが残る（結果画面の担当者列とCSVに出る）」。`authorizer.mjs` のコメントに「他Functionでの扱いは別issue」と書かれたまま残っていたもの。
+
 ## 5. 対象 race の照合と終了済みの扱い
 
 ### 5.1 照合の手順（管理者向けAPI）
