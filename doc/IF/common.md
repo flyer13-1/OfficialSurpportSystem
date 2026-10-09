@@ -163,21 +163,57 @@ API レスポンスの共通処理。**エラーなら alert を出して `true`
 | `response.ok` かつ `msg === ""`   | `false` を返す（正常）                                           |
 | `response.ok` だが `msg` が非空   | `msg` を alert して `true`                                       |
 | 400                               | `msg` を alert（既定文言「error: 400 Bad Request」）             |
-| **401**                           | alert の後 **ログイン画面へ `replace`**                          |
+| **401**                           | **`clearAuth()` で認証情報を消し**、alert の後 **ログイン画面へ `replace`**（2026-10-09追加。消さないと期限切れのトークンが `sessionStorage` に残っていた。01章§7） |
 | 500                               | `msg` を alert（既定文言「error: 500 Internal Server Error」）   |
 | それ以外（403 / 404 / 409 など）  | `msg` を alert するだけ                                          |
 
 **全APIの成功レスポンスは `{"msg": ""}` を含む約束になっている。** `msg` が空文字でないものは
 `200` でもエラーとして扱う。
 
-#### `reason` は見ていない（既知の仕様）
+#### `reason` を見るのは管理者画面だけ（2026-10-09更新）
 
 バックエンドは 403 の body に `reason`（`not_admin` / `user_not_found` / `race_finished`）を
 付けて理由を区別できるようにしている（[admin/v2/01_permission.md](../aws-sam/admin/v2/01_permission.md)）。
-**`handleApiError` はこれを参照していない。** 403 はすべて「それ以外」の経路で `msg` を alert するだけ。
+**`handleApiError` 自身はこれを参照しない。** 403 はすべて「それ以外」の経路で `msg` を alert するだけ。
 
-現状は `msg` の文言だけで利用者に伝わるため成立している。画面側で理由ごとに挙動を変えたく
-なった場合（例: `race_finished` なら conform へ戻す）に初めて分岐が必要になる。
+- **管理者画面は `adminFetch`（`adminRace.js`）で分岐する。** `not_admin` / `user_not_found` なら
+  `msg` を出して conform.html へ戻す（01章§7）。`handleApiError` 側に入れていないのは、
+  `GET /user/me` も `user_not_found` で403を返し、それを呼ぶのが conform.html 自身のため
+  （共通処理に入れると conform が自分自身へ戻り続ける）。
+- **一般画面は見ていない。** `race_finished` でも `msg` を alert するだけで画面は移動しない。
+  入力画面から勝手に移動させると入力中のものを失うため。**レースが終わっている場合に
+  conform へ戻すかは未決**（戻せば大会IDを入れ直して新しい raceToken を取れるが、
+  終了済みなら conform でも同じ理由で弾かれる）。
+
+### `apiFetch(url, options)`（2026-10-09追加）
+
+一般画面のAPI呼び出し口。**成功ならレスポンスのデータ、失敗なら `null`** を返すので、
+呼び出し側は `const data = await apiFetch(...); if (!data) return;` の形で早期離脱する。
+中で `handleApiError` を呼ぶため、エラーの alert はこれまでと同じ。
+
+**作った理由は `fetch` の例外。** 不正なトークンは API Gateway が Authorizer の拒否として返し、
+そのレスポンスには CORS ヘッダーが付かないためブラウザでは `fetch` が例外になる。通信が
+切れた場合も同じ。`try` を書いていない画面ではこの例外が誰にも拾われず、
+**「押しても何も起きない」**状態になっていた（`enterUpdate` の取得・`startDriver` の2箇所、
+`enterHand` / `enterUpdate` / `enterRetire` の送信は `finally` だけで `catch` が無かった）。
+
+| | 一般画面の `apiFetch` | 管理者画面の `adminFetch` |
+| --- | --- | --- |
+| `fetch` が例外 | alert を出して**その画面に留まる** | 認証を消して**ログイン画面へ**（01章§7） |
+| 403 の `reason` | 見ない | `not_admin` / `user_not_found` で conform.html へ |
+
+**例外時に留まるのは意図的。** サーキットは電波が悪いことがあり、入力画面は未送信データを
+端末に持って再送する作りなので、通信が切れただけでログイン画面へ飛ばすと入力中のものを失う。
+
+**使っていない画面もある（意図的）。** 独自の後処理を持つものは `fetch` のままにしてある。
+
+| 画面 | 理由 |
+| --- | --- |
+| `enterAuto`（取得・送信） | 送信失敗時に未送信データを `localStorage` に保存し、専用の文言を出す |
+| `enterHand`（取得） | 失敗したら回数を減らして再試行する |
+| `enterRetire`（リタイア済み一覧） | 失敗を alert ではなく画面内のメッセージで出す（フォームは使えるまま） |
+| `showAll` / `outPosts` | 取得が1箇所だけで、専用の文言を出している |
+| `conform` / `regist` | 再試行・Cognito との組み合わせがあり、共通化の対象外 |
 
 ### `showStep(id)` / `finishTo(page, delay)` / `refreshSubmit()` ほか
 
