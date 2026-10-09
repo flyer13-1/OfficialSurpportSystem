@@ -165,6 +165,32 @@
 | `requireAuth()`         | conform（まだ raceToken を持っていないため）                                     |
 | `requireAuth(true)`     | enterAuto / enterHand / enterUpdate / enterRetire / showAll / outPosts / startDriver |
 
+### `isTokenExpired(token)` / `logoutExpired()`（2026-10-09追加）
+
+**ログインの有効期限が切れたら、認証情報を消してログイン画面へ戻す。**
+
+Cognito の ID トークンは既定で1時間で切れる。切れた状態でAPIを叩くと、API Gateway の
+Authorizer が拒否し、**そのレスポンスには CORS ヘッダーが付かない**ため、ブラウザからは
+「CORSエラー」＝ `fetch` の例外にしか見えない（01章§7）。例外の中身からは
+**通信断と区別が付かない**。
+
+そこで `isTokenExpired()` が**トークンの中身（`exp`）を直接見る**。ID トークンは
+`ヘッダー.中身.署名` の形で、中身は Base64URL の JSON。`exp`（UNIX秒）を現在時刻と比べる。
+
+- **これは表示の出し分けにしか使わない。** 安全の根拠はサーバー側の署名検証（01章§3）。
+  読めない・`exp` が無い場合は「切れていない」とみなし、サーバーの判断に任せる。
+- `logoutExpired()` は `clearAuth()` →「ログインの有効期限が切れました。もう一度
+  ログインしてください。」→ ログイン画面へ `replace`。
+
+**見る場所は4つ。**
+
+| 場所 | いつ見るか |
+| --- | --- |
+| `requireAuth()` | **送る前**。切れていれば叩かずに戻す（画面を開いた時点でも効く） |
+| `apiFetch()` の `catch` | 例外が出たとき。切れていればログインへ、そうでなければ「通信に失敗しました」 |
+| `enterAuto` / `enterHand` の初期取得の `catch` | 同上。**切れている場合は再試行しない**（何度試しても通らないため） |
+| `adminFetch()` の `catch` | 同上（管理者画面） |
+
 ### `requireCircuitAuth()`
 
 管理者画面（admin）用。`token` と `circuit` の両方が無ければ **conform.html へ** `replace` する
