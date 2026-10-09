@@ -14,15 +14,10 @@ showAll.html と同じAPIを使用。仕様は [showAll.md](showAll.md)（`GET /
 
 ### クエリパラメータ
 
-//actは固定
+| パラメータ | 型 | 必須 | 説明 |
+| --- | --- | :--: | --- |
+| `act` | 数値 | 任意 | `1` を指定するとアクセス記録を残す。出力画面は常に `1` を送る |
 
-''' json
-{
-act : 1
-race_id :1
-}
-
-'''
-
-| act | integer | 任意 | `1` を指定するとアクセスログを記録する |
-| race_id | integer | act=1 のとき必須 | 記録対象のレースID。OutpostLogTable に username（JWTから取得）・race_id・アクセス日時を保存する |
+- **`race_id` は送らない（2026-10-04変更）。** `raceId` は `X-Race-Id` ヘッダーの署名付きトークンで送る（[raceIdToken.md](raceIdToken.md)、01章 R10）。以前はこのクエリで「act=1 のとき必須」としていた。
+- `act=1` のとき、`OutpostLog` に `username`（認証トークンから取得）・`race_id`・`is_leader`・日時を保存する（[04_pitlog.md](../aws-sam/admin/v2/04_pitlog.md) §6）。**記録は一般利用者・管理者を問わず残す。**
+- 記録するのは**データを取得したとき**（出力画面を開いた時点）。CSV / PDF のボタンを押した時点ではない。
