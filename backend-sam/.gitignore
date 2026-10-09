@@ -3,3 +3,6 @@ node_modules/
 *.js.map
 .env.local
 *.zip
+
+# 各自のマシン専用のデプロイスクリプト（中身に書いてあるとおり git 管理外）
+deploy.local.ps1
