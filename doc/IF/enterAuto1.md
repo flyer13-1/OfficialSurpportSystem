@@ -80,4 +80,7 @@
 
 - `carNum`: 数値の配列
 - `driver`: キーは車番（文字列）、値はドライバー名の配列（A〜F、最大6名）。名前内の `<br>` は表示用改行タグ。EntryTable の `driverA`〜`driverF` から生成
+  - **登録のある枠だけが入る（未登録は詰められる）。** 例: A と C だけ登録されている車は `["A<br>…", "C<br>…"]` の2要素になり、**配列の位置は枠（A〜F）と一致しない。**
+  - そのため画面は、各要素の先頭の文字（`A` 〜 `F`）で枠を判定する。`common.js` の `renderDriverOptions()` が `#Driver` のラジオの `value` で引き当てる（`enterAuto` / `enterHand` 共通）。
+  - **並び順で割り当ててはいけない。** 2026-10-09 まで `enterAuto` がそう実装しており、B が未登録の車で「B のラベルに C の氏名」が表示され、**選ぶと枠 B として送信されていた**。`enterHand` はそもそも `driver` を使っておらず、HTMLの「ドライバー名」という文字が出たままだった。
 - `startDriver`（2026-10-03追加）: キーは車番（文字列）、値は登録済みのスタートドライバー枠（`"A"`〜`"F"`）。未登録は `null`。`carNum` と同じ車両だけを対象にする（担当エリア外は含まない）。登録は `POST /entries/start-driver`（[03_race_data.md](../aws-sam/admin/v2/03_race_data.md) §3.6）
