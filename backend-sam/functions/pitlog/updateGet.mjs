@@ -45,17 +45,21 @@ export const handler = async (event) => {
     // 1台分では「時刻順＝ピット回数順」になるため、画面側の並べ替えと矛盾しない。
     const logs = (await buildPitLogs(raceId)).filter((row) => row.carNum === car_num);
 
-    // リタイア理由は buildPitLogs が持たない（04章§4.3 の列に無いため）。
-    // 更新画面は現在の理由を入力欄に出すので、ここで引いて別項目として返す。
+    // リタイアの状態は buildPitLogs の行に含まれる retire だけでは足りない。
+    //   ・理由（reason）は 04章§4.3 の列に無いので持っていない
+    //   ・**ピット記録が1件も無い車でも、リタイアの取り消しはできる必要がある**
+    //     （buildPitLogs はピット記録のある車しか行を作らない）
+    // そのため RetireTable を直接引き、logs とは別の項目として返す（2026-10-09）。
     const retireResult = await docClient.send(
       new GetCommand({
         TableName: Tables.retire,
         Key:       { race_id: raceId, car_num },
       })
     );
-    const reason = retireResult.Item?.reason ?? "";
+    const isRetired = retireResult.Item?.is_retired === true;
+    const reason    = retireResult.Item?.reason ?? "";
 
-    return response(200, { msg: "", reason, logs });
+    return response(200, { msg: "", isRetired, reason, logs });
   } catch (err) {
     console.error("updateGet error:", err);
     return response(500, { msg: "サーバーエラーが発生しました" });

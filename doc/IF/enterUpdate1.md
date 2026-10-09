@@ -87,7 +87,8 @@
 ```
 
 - `logs`: 対象車両のピット記録。**1台分なので時刻順＝ピット回数順**になる
-- `reason`: **リタイア理由**（RetireTable）。車両ごとに1つなので `logs` の外に置く。リタイアしていなければ空文字。更新画面の「理由変更」の初期値に使う
+- `isRetired`: **リタイア中かどうか**（RetireTable の `is_retired`。2026-10-09追加）。`logs` の外に置くのは、**ピット記録が1件も無い車でもリタイアを取り消せる必要がある**ため（`buildPitLogs` はピット記録のある車しか行を作らない）
+- `reason`: **リタイア理由**（RetireTable）。車両ごとに1つなので `logs` の外に置く。リタイアしていなければ空文字。更新画面の「理由」欄の初期値に使う
 - `inDriver` / `outDriver`: ドライバー枠（`A`〜`F`）。`inDriver` は**前回出ていった人**で、1回目だけ `start_driver` を使う（04章§2.3 のキュー方式）。`inDriverName` / `outDriverName` は entry から引いた氏名
 - `pitGap`: `outTime - inTime`（秒）。**どちらかが欠けていれば `null`**（DB保存なし）
 - `retire`: RetireTable の `is_retired`（boolean）

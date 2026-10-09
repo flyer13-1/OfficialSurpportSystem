@@ -7,8 +7,14 @@ import { requireGeneralRace } from "/opt/nodejs/raceToken.js";
  * IF設計書: doc/IF/enterRetire2.md
  *
  * raceId は X-Race-Id ヘッダーのトークンで受け取る（requireGeneralRace。01章 R10）。
- * 既にリタイア済みかは確認しない（同じ車番を送ると理由を上書きする。
- * 理由の訂正手段も兼ねている。リタイア取り消しは PUT /entries/update）。
+ *
+ * **既にリタイア登録されている車両は 409 で弾く**（2026-10-09変更）。
+ * 以前は条件なしで PutItem していたため、同じ車番を送ると理由が黙って上書きされ、
+ * 先に入れた内容が消えていた。理由の訂正と取り消しは変更モード
+ * （PUT /entries/update の selection=2 / 3）で行う。
+ *
+ * 取り消し済み（is_retired=false）の車両は、もう一度リタイア登録できる。
+ * そのため「行が無いこと」ではなく「リタイア中でないこと」を条件にする。
  */
 export const handler = async (event) => {
   try {
@@ -48,17 +54,30 @@ export const handler = async (event) => {
     }
 
     // ── RetireTable に PutItem（is_retired=true） ──
-    await docClient.send(
-      new PutCommand({
-        TableName: Tables.retire,
-        Item: {
-          race_id,
-          car_num,
-          is_retired: true,
-          reason:     String(reason).trim(),
-        },
-      })
-    );
+    // 既にリタイア中なら書き換えない。取り消し済み（false）の行は上書きしてよい
+    try {
+      await docClient.send(
+        new PutCommand({
+          TableName: Tables.retire,
+          Item: {
+            race_id,
+            car_num,
+            is_retired: true,
+            reason:     String(reason).trim(),
+          },
+          ConditionExpression:
+            "attribute_not_exists(car_num) OR is_retired = :false",
+          ExpressionAttributeValues: { ":false": false },
+        })
+      );
+    } catch (err) {
+      if (err.name === "ConditionalCheckFailedException") {
+        return response(409, {
+          msg: "この車両は既にリタイア登録されています。理由の変更や取り消しは変更モードで行ってください",
+        });
+      }
+      throw err;
+    }
 
     return response(200, { msg: "" });
   } catch (err) {
