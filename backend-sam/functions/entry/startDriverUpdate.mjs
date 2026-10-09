@@ -1,7 +1,11 @@
 import { GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient, Tables, response } from "/opt/nodejs/dynamodb.js";
 import { requireGeneralRace } from "/opt/nodejs/raceToken.js";
-import { isValidDriverLetter, hasDriverSlot } from "/opt/nodejs/entryAccess.js";
+import {
+  isValidDriverLetter,
+  hasDriverSlot,
+  isPositiveInt,
+} from "/opt/nodejs/entryAccess.js";
 import { findUnassignedCars } from "/opt/nodejs/pitAssignmentAccess.js";
 
 /**
@@ -19,8 +23,14 @@ export const handler = async (event) => {
     const raceId = access.raceId;
 
     const body   = JSON.parse(event.body || "{}");
-    const carNum = Number(body.carNum);
     const driver = body.driver;
+
+    // 検証せずに Number() すると、未指定や "abc" が NaN になって
+    // findUnassignedCars が「担当エリア外」と判定し、400 のはずが 403 で返っていた。
+    if (!isPositiveInt(body.carNum)) {
+      return response(400, { msg: "車番は正の整数で指定してください" });
+    }
+    const carNum = Number(body.carNum);
 
     if (!isValidDriverLetter(driver)) {
       return response(400, { msg: "ドライバ枠は A〜F で指定してください" });

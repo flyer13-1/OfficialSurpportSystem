@@ -2,14 +2,15 @@ import { QueryCommand, UpdateCommand, PutCommand, GetCommand } from "@aws-sdk/li
 import { docClient, Tables, response, generateId } from "/opt/nodejs/dynamodb.js";
 import { requireGeneralRace } from "/opt/nodejs/raceToken.js";
 import { findUnassignedCars } from "/opt/nodejs/pitAssignmentAccess.js";
+import { isPositiveInt } from "/opt/nodejs/entryAccess.js";
 
 /**
  * PUT /entries/update — 記録変更 / リタイア情報更新 / リタイア取り消し
- * IF設計書: enterUpdate2.md
+ * IF設計書: doc/IF/enterUpdate2.md
  * selection=1: ピット記録変更
  * selection=2: リタイア情報更新（reason）
  * selection=3: リタイア取り消し（is_retired → false）
- * クエリパラメータ: race_id
+ * raceId は X-Race-Id（raceId トークン）で受け取る
  */
 export const handler = async (event) => {
   try {
@@ -27,7 +28,13 @@ export const handler = async (event) => {
     if (carNum === undefined || carNum === null) {
       return response(400, { msg: "carNum は必須です" });
     }
+    // 検証せずに Number() すると、"abc" が NaN になって findUnassignedCars が
+    // 「担当エリア外」と判定し、400 のはずが 403 で返っていた。
+    if (!isPositiveInt(carNum)) {
+      return response(400, { msg: "車番は正の整数で指定してください" });
+    }
     const car_num = Number(carNum);
+
     if ((await findUnassignedCars(username, race_id, [car_num])).length > 0) {
       return response(403, { msg: "担当エリア外の車両です" });
     }
@@ -36,6 +43,11 @@ export const handler = async (event) => {
     if (String(selection) === "1") {
       const { when, inTime, outTime, outDriver, tire, oil, note } = body;
       if (!when) return response(400, { msg: "when（ピット回数）は必須です" });
+      // 未検証だと NaN が FilterExpression に入り、どの記録にも一致せず
+      // 「対象のピット記録が見つかりません」になって原因が分からない。
+      if (!isPositiveInt(when)) {
+        return response(400, { msg: "ピット回数は正の整数で指定してください" });
+      }
 
       const pitNum = Number(when);
 
