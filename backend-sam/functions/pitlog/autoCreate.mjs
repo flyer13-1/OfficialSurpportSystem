@@ -1,12 +1,29 @@
-import { QueryCommand, BatchWriteCommand } from "@aws-sdk/lib-dynamodb";
-import { docClient, Tables, response, generateId } from "/opt/nodejs/dynamodb.js";
+import { QueryCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
+import {
+  docClient,
+  Tables,
+  response,
+  generateId,
+  MAX_TRANSACT_ITEMS,
+} from "/opt/nodejs/dynamodb.js";
 import { requireGeneralRace } from "/opt/nodejs/raceToken.js";
 import { findUnassignedCars } from "/opt/nodejs/pitAssignmentAccess.js";
 
 /**
  * POST /entries/auto — 自動入力送信
- * IF設計書: enterAuto2.md
- * current + unsent のデータを BatchWriteItem で PitLogTable に保存
+ * IF設計書: doc/IF/enterAuto2.md
+ *
+ * current + unsent のデータを **TransactWriteItems** で PitLogTable に保存する
+ * （2026-10-09変更。以前は BatchWriteItem を25件ずつ送り、戻り値を見ていなかった）。
+ *
+ * BatchWriteItem は容量不足・スロットリング時に、処理できなかった項目を
+ * UnprocessedItems に入れた「正常応答」を返す。例外ではないので try/catch では捕まらず、
+ * 戻り値を見ていないと「200 を返したのに一部が入っていない」状態になる。
+ * この画面はレース中ずっと使われ、しかもフロントは送信が成功すると端末の未送信データ
+ * （localStorage の unsentData）を消すため、取りこぼした記録は復旧できない。
+ * TransactWriteItems なら全件成功か全件失敗のどちらかで、失敗時は例外になるので
+ * 画面が未送信データを保持したままやり直せる（管理者側の一括登録と同じ扱い。03章§1.1）。
+ *
  * raceId は X-Race-Id（raceId トークン）で受け取る
  */
 export const handler = async (event) => {
@@ -34,7 +51,7 @@ export const handler = async (event) => {
     }
 
     // ── 各車番の次の pit_num を取得してアイテムを生成 ──
-    const putItems = [];
+    const transactItems = [];
 
     for (const [carNumStr, data] of Object.entries(merged)) {
       const car_num = Number(carNumStr);
@@ -69,8 +86,9 @@ export const handler = async (event) => {
       );
 
       const now = new Date().toISOString();
-      putItems.push({
-        PutRequest: {
+      transactItems.push({
+        Put: {
+          TableName: Tables.pitLog,
           Item: {
             race_id:        raceId,
             id:             generateId(),
@@ -90,22 +108,32 @@ export const handler = async (event) => {
       });
     }
 
-    if (putItems.length === 0) {
+    if (transactItems.length === 0) {
       return response(200, { msg: "" });
     }
 
-    // ── BatchWriteItem（25件ずつ） ──
-    for (let i = 0; i < putItems.length; i += 25) {
-      const chunk = putItems.slice(i, i + 25);
-      await docClient.send(
-        new BatchWriteCommand({
-          RequestItems: { [Tables.pitLog]: chunk },
-        })
-      );
+    // 1トランザクション100件まで。マージ後の件数は車番ごとに1件なので、
+    // 担当エリアの台数分（多くて十数台）に収まる。念のため入口で弾く。
+    if (transactItems.length > MAX_TRANSACT_ITEMS) {
+      return response(400, {
+        msg: `一度に送信できるのは${MAX_TRANSACT_ITEMS}件までです`,
+      });
     }
+
+    // ── TransactWriteItems（全件成功か全件失敗） ──
+    // id は送信ごとに新しい ULID のため、条件（attribute_not_exists）は付けない。
+    await docClient.send(new TransactWriteCommand({ TransactItems: transactItems }));
 
     return response(200, { msg: "" });
   } catch (err) {
+    // 全件失敗して何も書き込まれていない。画面は未送信データを持ったままなので、
+    // やり直せることを伝える（握りつぶして200を返すと記録が消える）。
+    if (err.name === "TransactionCanceledException") {
+      console.error("autoCreate transaction canceled:", err);
+      return response(500, {
+        msg: "送信できませんでした。もう一度お試しください",
+      });
+    }
     console.error("autoCreate error:", err);
     return response(500, { msg: "サーバーエラーが発生しました" });
   }
