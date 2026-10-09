@@ -220,16 +220,18 @@ startDriver → pit_log 1回目の driver_out → pit_log 2回目の driver_out 
 | ------- | --------------------------------------------------------------------------------------------------------------- |
 | `act=1` | 付けると `OutpostLog` に記録する（§6）。`outPosts.html` と管理者ポップアップが付ける。`showAll.html` は付けない |
 
-処理の順序:
+処理の順序（**2026-10-09実装**。トークン移行後の形に更新）:
 
-1. `authorizer.sub` が無ければ **401**
-2. `raceId`（ヘッダー）から race を取得する。無ければ **404**
-3. **呼び出し元が leader か**で分岐する
-   - **leader の場合:** `race.organization_id` が自分のサーキットと違えば **404**。終了済みでも続行する（01章 §5.1）
-   - **leader でない場合:** サーキットは見ない。終了済みなら **403**（`reason: "race_finished"`、01章 §5.4）
-4. `buildPitLogs(raceId)` でデータを組み立てる
-5. `act=1` なら `OutpostLog` に記録する
-6. 返す
+1. `authorizer.username` が無ければ **401**
+2. **呼び出し元が leader か**で分岐する。**分岐はトークン検証より前に行う**（送られてくるものが違うため）
+   - **leader の場合:** `X-Race-Id` は**平文の raceId**（管理者APIは raceId トークンの対象外。01章 R10・`raceToken.js` 冒頭）。`requireAdmin` で leader とサーキットを確認し、`requireRace`（`write` 指定なし）で race を取得する。**存在しない／他サーキットは 404、終了済みでも続行**（01章 §5.1）
+   - **leader でない場合:** `X-Race-Id` は**署名付きトークン**。`requireGeneralRace` で検証する。終了済み（`exp` 超過）なら **403**（`reason: "race_finished"`）、その他の不正も **403**（01章 §5.4）
+3. `buildPitLogs(raceId)` でデータを組み立てる
+4. `act=1` なら `OutpostLog` に記録する（`is_leader` も残す）
+5. 返す
+
+- **レースタイトル（`raceTitle`）の取り方が分岐で違う。** leader は `requireRace` が返した race をそのまま使う（引き直さない）。一般利用者はトークンに raceId しか入っていないため、`RaceTable` を1回引く。
+- 認可の部品は管理者APIと同じもの（`admin.js` の `requireAdmin`・`raceAccess.js` の `requireRace`）を流用する。IAM は既存の `RaceDataLambdaRole` で足りる（`UsersTable` の `GetItem` と `RaceTable` の `GetItem` を既に許可している）。
 
 > **なぜ1本にするか:** 返すデータも形式も同じで、違うのは認可だけ。2本に分けると、ほぼ同じ中身の Lambda を2つ保守することになる。「終了済みを見られるかは、どの画面から呼んだかではなく、その人が leader かどうかで決まる」という考え方に揃える。
 
@@ -238,10 +240,13 @@ startDriver → pit_log 1回目の driver_out → pit_log 2回目の driver_out 
 | 条件                           | コード | msg                                                 |
 | ------------------------------ | ------ | --------------------------------------------------- |
 | 未ログイン                     | 401    | 「認証が必要です」                                  |
-| race が存在しない              | 404    | 「対象のレースが存在しません」                      |
-| leader で、他サーキットの race | 404    | 同上（存在を知られないため）                        |
+| **leader で、race が存在しない／他サーキットの race** | 404    | 「対象のレースが存在しません」（どちらも同じ。存在を知られないため） |
+| leader だが `users` に登録が無い | 403    | 「ユーザーが見つかりません」（`reason: "user_not_found"`。`requireAdmin`） |
 | leader でなく、race が終了済み | 403    | 「終了したレースです」（`reason: "race_finished"`） |
+| leader でなく、トークンが不正   | 403    | 「大会IDを確認できません。入室し直してください」（`reason` なし） |
 | サーバーエラー                 | 500    | 「サーバーエラーが発生しました」                    |
+
+**一般利用者には 404 が無い。** トークン方式では race を引かないため（01章 §5.4）。`404` は leader の経路（`requireRace`）だけで返る。
 
 ## 4. フロントでの表示方法
 
@@ -419,11 +424,15 @@ URL.revokeObjectURL(a.href);
 - ~~**`garageInTime` の全廃（§2.5）**~~ 実装済み（既存データに値が入った記録は無いことを確認済み）
 - ~~`showAllGimic.js`: **並べ替えを `inTime` → `carNum` に修正**、列定義（§4.3）を回して描く形に変更~~ 実装済み（`sortTimeOf` と `PIT_LOG_COLUMNS`。§4.1の問題#4〜#6が解消）
 
-**管理者向け（着手順は下記のとおり。1 は完了）**
+**管理者向け（2026-10-09 完了）**
 
 1. ~~`showAllGimic.js`: DOM決め打ち（トップレベルの `getElementById` / `querySelector("tbody")`）とグローバル変数（`entries`）を排除し、引数で受け取る形に変更。トップレベルの `addEventListener` を各画面に移す（§4.2。§4.1の問題#1〜#3）~~ **実装済み（2026-10-09）。** `filterAndSortPitLogs` / `renderPitLogHead` / `renderPitLogTable` / `renderClassButtons` に分け、絞り込みの状態とイベントの紐付けは `showAll.js` / `outPosts.js` に移した。`showAll.html` / `outPosts.html` の見出し直書きも廃止（§4.3）。**これで 2・3 の前提は満たした**
-2. [showAll.mjs](../../../../backend-sam/functions/pitlog/showAll.mjs): 認可の leader 分岐を追加（§3.3）。leader は平文 raceId を `X-Race-Id` で送るため、`requireGeneralRace` の前に分岐が必要
-3. `admin.html` / `admin.js` / `admin.css`: ポップアップ、表、ダウンロードボタン。PDF は `window.print()` のため、ダイアログ以外を隠す印刷用CSSも必要
+2. ~~[showAll.mjs](../../../../backend-sam/functions/pitlog/showAll.mjs): 認可の leader 分岐を追加（§3.3）~~ **実装済み（2026-10-09）。** `requireGeneralRace` より前に分岐し、leader は `requireAdmin` ＋ `requireRace`（管理者APIと同じ部品）を通す。終了済みでも参照でき、他サーキットは404
+3. ~~`admin.html` / `admin.js` / `admin.css`: ポップアップ、表、ダウンロードボタン~~ **実装済み（2026-10-09）。** `adminPitlog.js` を新設し、一覧の「ピット記録」ボタンから開く。表示・絞り込み・CSVは `showAllGimic.js` の共通部品をそのまま流用（独自実装は無い）。印刷用CSS（`@media print`）でポップアップ以外を隠す
+
+**CSV の組み立ても共通部品に移した（2026-10-09）。** `buildPitLogCsv` / `downloadPitLogCsv` を
+`showAllGimic.js` に置き、出力画面（`outPosts.js`）と管理者ポップアップが同じものを使う。
+以前は `outPosts.js` だけが持っていたため、ポップアップ側に写すと二重実装になっていた（§5.2）。
 
 **設計書・DB定義の追従（未実施）**
 

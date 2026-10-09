@@ -26,23 +26,23 @@
 
 | 章 | ファイル | 内容 | 状況 |
 |---|---|---|---|
-| 01 | [01_permission.md](01_permission.md) | 権限モデル（認証・leader・サーキット・責務分担） | 確定（2026-09-28） |
+| 01 | [01_permission.md](01_permission.md) | 権限モデル（認証・leader・サーキット・責務分担） | 確定（2026-09-28）／実装済み |
 | 02 | [02_race.md](02_race.md) | race（項目・登録・確認の表示・変更・終了後の表示。フロントとバックエンドを合わせて定める） | 確定（2026-09-30） |
 | 03 | [03_race_data.md](03_race_data.md) | race に属するデータ（entry / start_driver / pit_assignment）の登録・確認・変更と、race の削除の扱い | 確定（2026-09-30） |
-| 04 | [04_pitlog.md](04_pitlog.md) | pitlog の参照・ダウンロード（管理者画面・一般画面 共通） | 確定（2026-10-02） |
+| 04 | [04_pitlog.md](04_pitlog.md) | pitlog の参照・ダウンロード（管理者画面・一般画面 共通） | 確定（2026-10-02）／**実装済み（2026-10-09）** |
 
 **全4章が確定。** 実装は01〜03章がフロント・バックエンドとも完了し、**残っているのは04章（pitlog）の管理者向け参照のみ**（2026-10-05時点）。詳しい残件は[下記](#実装の残件2026-10-05時点)。
 
 章は、データ・API・画面の層ごとではなく、対象（race、race 配下のデータ、pitlog）ごとに区切る。各章の中で、フロントの表示とバックエンドの処理を一緒に決める。
 
-## 実装の残件（2026-10-05時点）
+## 実装の残件（**2026-10-09 に 1・2 とも完了**）
 
-nextJob.md の最後の節「結果を見るページ」に当たる部分。**着手順は 1 → 2。**
+nextJob.md の最後の節「結果を見るページ」に当たる部分。着手順は 1 → 2 だった。
 
 | # | 残件 | 内容 | 状況 |
 |---|---|---|---|
-| 1 | `showAllGimic.js` の共通部品化 | トップレベルの `getElementById` / `querySelector("tbody")`、グローバル `entries` の直読み、トップレベルの `addEventListener` を取り除き、`filterAndSortPitLogs(logs, {className, search})` と `renderPitLogTable(tbody, logs)` に引数で渡す形にする。イベントの紐付けは各画面（`showAll.js` / `outPosts.js` / 管理者ポップアップ）に移す（04章§4.1・§4.2） | **完了（2026-10-09）** |
-| 2 | 管理者ポップアップ | `showAll.mjs` に leader 分岐（平文 raceId の受付・サーキット照合・終了済みでも許可）を追加し、admin.html にモーダル・表・CSV/PDFボタンを作る（04章§3.3・§4.2・§6） | 未着手（1 が終わったため着手可能） |
+| ~~1~~ | `showAllGimic.js` の共通部品化 | トップレベルの `getElementById` / `querySelector("tbody")`、グローバル `entries` の直読み、トップレベルの `addEventListener` を取り除き、`filterAndSortPitLogs(logs, {className, search})` と `renderPitLogTable(tbody, logs)` に引数で渡す形にする。イベントの紐付けは各画面（`showAll.js` / `outPosts.js` / 管理者ポップアップ）に移す（04章§4.1・§4.2） | **完了（2026-10-09）** |
+| ~~2~~ | 管理者ポップアップ | `showAll.mjs` に leader 分岐（平文 raceId の受付・サーキット照合・終了済みでも許可）を追加し、admin.html にモーダル・表・CSV/PDFボタンを作る（04章§3.3・§4.2・§6） | **完了（2026-10-09）** |
 
 **04章§4.1 の6つの問題は全て解消済み**（#4〜#6 は 2026-10-04、#1〜#3 は 2026-10-09）。
 
@@ -55,6 +55,7 @@ nextJob.md の最後の節「結果を見るページ」に当たる部分。**�
 
 | 日付 | 決定 | 内容 |
 |---|---|---|
+| 2026-10-09 | 管理者ポップアップ（04章の残件2）完了 | `showAll.mjs` に leader 分岐を追加（`requireAdmin` ＋ `requireRace` を流用。平文 raceId・終了済みでも参照可・他サーキットは404）。`adminPitlog.js` を新設し、一覧の「ピット記録」ボタンから開くポップアップを作った。表示・絞り込み・列・CSVは `showAllGimic.js` の共通部品を流用し、独自実装を作らない。CSVの組み立て（`buildPitLogCsv` / `downloadPitLogCsv`）も共通部品に移し、出力画面と共有。PDFは `window.print()` ＋ 印刷用CSS。**これで04章は全て実装済み**（04章§3.3・§5・§7） |
 | 2026-10-09 | `showAllGimic.js` の共通部品化 | DOM決め打ち（トップレベルの `getElementById` / `querySelector("tbody")`）とグローバル `entries` の直読みを排除し、`filterAndSortPitLogs` / `renderPitLogHead` / `renderPitLogTable` / `renderClassButtons` に分けた。絞り込みの状態とイベントの紐付けは `showAll.js` / `outPosts.js` が持つ。見出しの直書き（14列×2ファイル）も廃止し、列定義から作る。**`outPosts.html` には `#all`/`#search`/`#filter` が無く、出力画面では毎回 `TypeError` が出ていた**（04章§4.1 #1 の実害）。これで管理者ポップアップ（残件2）の前提が揃った（04章§4.1・§4.2・§4.3） |
 | 2026-10-08 | 一括登録を TransactWriteItems に統一 | `startDriverBulk`/`pitAssignmentBulk` が `BatchWriteItem` を使い、**`UnprocessedItems` を確認していなかった**（容量不足・スロットリング時に「成功と返したのに一部入っていない」状態が起き得た。例外ではないので try/catch では捕まらない）。`entryBulk` と同じ `TransactWriteItems` に揃え、100件超は400で弾く。3テーブルをまたぐ原子性は無い点を03章§1.1に明記 |
 | 2026-10-08 | 重複行は弾いて残りを登録 | `start_driver`（車番）・`pit_assignment`（担当者名）の重複は、リクエスト全体を拒否せず**その行だけ除外して残りを登録**し、除外した行を `skipped` で返して画面に出す。`entry` の車番重複は入力ミスそのもののため従来どおり400/409で拒否する。形式の違反（A〜F以外・未登録の担当者など）も従来どおり全体を拒否。これで §3.2 の「同一車番は上書きとして許容」は撤回（03章§1.1） |
@@ -117,7 +118,7 @@ nextJob.md の最後の節「結果を見るページ」に当たる部分。**�
 
 ## 04章に引き継ぐこと
 
-データ生成の共通化（`buildPitLogs()`）と一般向けの対応は2026-10-04に完了した。**残っているのは管理者向けの参照だけ**（上記「実装の残件」の 1・2）。
+データ生成の共通化（`buildPitLogs()`）と一般向けの対応は2026-10-04に完了し、**管理者向けの参照も2026-10-09に完了した**（上記「実装の残件」の 1・2）。以下は、そのときに守った決定の記録。
 
 - 管理者向けの pitlog 参照は、**ハンドラを2本に分けず `GET /entries/show` 1本のまま**、呼び出し元が leader かどうかで分岐させる（04章§3.3の決定）。leader は平文の raceId を `X-Race-Id` で送る（管理者APIは raceId トークンの対象外。`raceToken.js` の冒頭コメント）。leader なら他サーキットは404・終了済みでも参照可、leader でなければ従来どおり終了済みは403
 - ポップアップとダウンロードボタン（**CSV と PDF**。Excel から変更済み）で `showAllGimic.js` の表示処理を流用するため、`entries` などのグローバル名が `admin.js` 系と衝突しないようにする（これが残件1の中身）
