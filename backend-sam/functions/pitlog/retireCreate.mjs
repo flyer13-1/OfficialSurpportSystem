@@ -4,8 +4,11 @@ import { requireGeneralRace } from "/opt/nodejs/raceToken.js";
 
 /**
  * POST /entries/retire — リタイア登録
- * IF設計書: enterRetire2.md
- * クエリパラメータ: race_id
+ * IF設計書: doc/IF/enterRetire2.md
+ *
+ * raceId は X-Race-Id ヘッダーのトークンで受け取る（requireGeneralRace。01章 R10）。
+ * 既にリタイア済みかは確認しない（同じ車番を送ると理由を上書きする。
+ * 理由の訂正手段も兼ねている。リタイア取り消しは PUT /entries/update）。
  */
 export const handler = async (event) => {
   try {

@@ -4,9 +4,10 @@ import { requireGeneralRace } from "/opt/nodejs/raceToken.js";
 
 /**
  * GET /entries/init — 初期データ取得
- * IF設計書: enterAuto1.md / doc/aws-sam/admin/v2/03_race_data.md §3.6
- * 担当者の作業エリアに紐づく車両・ドライバー情報を返す
- * クエリパラメータ: race_id（conform で取得した値）
+ * IF設計書: doc/IF/enterAuto1.md / doc/aws-sam/admin/v2/03_race_data.md §3.6
+ *
+ * 担当者の作業エリアに紐づく車両・ドライバー情報と、start_driver の登録状況を返す。
+ * raceId は X-Race-Id ヘッダーのトークンで受け取る（requireGeneralRace。01章 R10）。
  */
 export const handler = async (event) => {
   try {
