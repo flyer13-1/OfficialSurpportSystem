@@ -133,6 +133,11 @@ conform、pitlog の入力・参照・出力のAPIが対象。サーキットで
 | API が 403 で `reason` が `not_admin` または `user_not_found` | `msg` を表示し、conform.html へ戻す          |
 | API が 403 で `reason` が `race_finished`                     | `msg` を表示するだけ（画面は移動しない）     |
 
+**管理者画面だけが「移動しない」。** 一般画面は 2026-10-09 に `race_finished` を受けたら
+conform.html へ戻す形にした（`raceToken` の期限切れでも返るため、大会IDを入れ直せば作業を
+続けられる。[common.md](../../../IF/common.md)）。管理者は終了済みのレースも一覧で扱うため、
+`adminFetch` が `race_finished` を先に受け止めて `handleApiError` に渡さない。
+
 - 不正なトークンは、API Gateway が Authorizer の拒否として返すレスポンスになる。このレスポンスには CORS ヘッダーが付かないと思われ、その場合ブラウザでは `fetch` が例外になる。401 で返る場合と例外になる場合のどちらでも同じ処理（ログインへ戻す）にするため、レスポンスの形に依存しない。
 - 通信が切れて `fetch` が例外になった場合も、同じ扱いでログイン画面へ戻る。これは許容する。
 

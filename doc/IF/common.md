@@ -165,6 +165,7 @@ API レスポンスの共通処理。**エラーなら alert を出して `true`
 | 400                               | `msg` を alert（既定文言「error: 400 Bad Request」）             |
 | **401**                           | **`clearAuth()` で認証情報を消し**、alert の後 **ログイン画面へ `replace`**（2026-10-09追加。消さないと期限切れのトークンが `sessionStorage` に残っていた。01章§7） |
 | 500                               | `msg` を alert（既定文言「error: 500 Internal Server Error」）   |
+| **403 で `reason: "race_finished"`** | `msg` を alert し、**conform.html へ `replace`**（2026-10-09追加。下記） |
 | それ以外（403 / 404 / 409 など）  | `msg` を alert するだけ                                          |
 
 **全APIの成功レスポンスは `{"msg": ""}` を含む約束になっている。** `msg` が空文字でないものは
@@ -180,10 +181,16 @@ API レスポンスの共通処理。**エラーなら alert を出して `true`
   `msg` を出して conform.html へ戻す（01章§7）。`handleApiError` 側に入れていないのは、
   `GET /user/me` も `user_not_found` で403を返し、それを呼ぶのが conform.html 自身のため
   （共通処理に入れると conform が自分自身へ戻り続ける）。
-- **一般画面は見ていない。** `race_finished` でも `msg` を alert するだけで画面は移動しない。
-  入力画面から勝手に移動させると入力中のものを失うため。**レースが終わっている場合に
-  conform へ戻すかは未決**（戻せば大会IDを入れ直して新しい raceToken を取れるが、
-  終了済みなら conform でも同じ理由で弾かれる）。
+- **一般画面は `race_finished` だけ `handleApiError` が扱う（2026-10-09確定）。** `msg` を出して
+  **conform.html へ戻す。** そのまま入力を続けても全て失敗するうえ、`race_finished` は
+  **`raceToken` の期限切れでも返る**（終了日が無いレースはトークンが2時間で切れる。
+  [raceIdToken.md](raceIdToken.md)、[userMenu1.md](userMenu1.md)）。conform へ戻れば
+  大会IDを入れ直して新しいトークンを取れるため、戻すほうが作業を続けられる。
+  - **conform 自身がこれを受けたときは移動しない**（終了したレースの大会IDを入れた場合）。
+    同じ画面へ `replace` すると入力内容とメッセージが消えるため、`location.pathname` で
+    判定して除外している。
+  - **管理者画面は移動しない**（01章§7）。終了済みのレースも一覧で扱うため、
+    `adminFetch` が `race_finished` を先に受け止めて `handleApiError` に渡さない。
 
 ### `apiFetch(url, options)`（2026-10-09追加）
 
