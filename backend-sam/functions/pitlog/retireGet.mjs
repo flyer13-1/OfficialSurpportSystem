@@ -1,12 +1,15 @@
-import { QueryCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { docClient, Tables, response } from "/opt/nodejs/dynamodb.js";
 import { requireGeneralRace } from "/opt/nodejs/raceToken.js";
 
 /**
- * GET /entries/retire — リタイア登録 初期データ取得
- * IF設計書: enterRetire.md
- * 全エントリーを maintenance_area 昇順、car_num 昇順で返す
- * クエリパラメータ: race_id
+ * GET /entries/retire — リタイア登録画面の初期データ取得
+ * IF設計書: doc/IF/enterRetire.md
+ *
+ * 全エントリーを maintenance_area 昇順・car_num 昇順で、リタイア状態（isRetired / reason）
+ * つきで返す。担当エリアによる絞り込みはしない。
+ * raceId は X-Race-Id ヘッダーのトークンで受け取る（requireGeneralRace。01章 R10）。
+ * 画面はこの結果のうち isRetired の行だけを「リタイア済みの車両」として表に出す。
  */
 export const handler = async (event) => {
   try {
